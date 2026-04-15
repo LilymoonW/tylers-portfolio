@@ -1,7 +1,7 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import type { Tool } from '@/types'
+import { PinContainer } from '@/components/ui/3d-pin'
 import ScrollReveal from './ScrollReveal'
 
 export default function ToolsShowcase({ tools }: { tools: Tool[] }) {
@@ -15,25 +15,34 @@ export default function ToolsShowcase({ tools }: { tools: Tool[] }) {
           <p className="text-muted mb-12">Software I use to bring ideas to life.</p>
         </ScrollReveal>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {tools.map((tool, i) => (
             <ScrollReveal key={tool.id} delay={i * 0.05}>
-              <motion.div
-                className="p-6 rounded-xl bg-surface border border-white/5 hover:border-bright-blue/30 transition-all group"
-                whileHover={{ y: -4 }}
-                data-cursor="expand"
-              >
-                {/* Placeholder icon */}
-                <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center mb-4 group-hover:bg-bright-blue/10 transition-colors">
-                  <span className="font-display text-lg text-muted group-hover:text-bright-blue transition-colors">
-                    {tool.name.charAt(0)}
-                  </span>
-                </div>
-                <h3 className="font-display text-xl uppercase">{tool.name}</h3>
-                <p className="text-muted text-xs uppercase tracking-widest mt-1">
-                  {tool.category}
-                </p>
-              </motion.div>
+              <div className="h-[320px] flex items-center justify-center" data-cursor="expand">
+                <PinContainer
+                  title={tool.category}
+                  containerClassName="w-full h-[280px]"
+                >
+                  <div className="flex flex-col items-center justify-center w-[180px] p-4">
+                    {/* Icon placeholder */}
+                    <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center mb-4 group-hover/pin:bg-bright-blue/10 transition-colors">
+                      <span className="font-display text-2xl text-muted group-hover/pin:text-bright-blue transition-colors">
+                        {tool.name.charAt(0)}
+                      </span>
+                    </div>
+
+                    <h3 className="font-display text-xl uppercase text-white text-center">
+                      {tool.name}
+                    </h3>
+                    <p className="text-muted text-xs uppercase tracking-widest mt-2">
+                      {tool.category}
+                    </p>
+
+                    {/* Gradient bar */}
+                    <div className="w-full h-1 rounded-full mt-4 bg-gradient-to-r from-bright-blue via-cyan to-bright-blue/0" />
+                  </div>
+                </PinContainer>
+              </div>
             </ScrollReveal>
           ))}
         </div>

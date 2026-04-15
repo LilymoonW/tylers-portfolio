@@ -22,36 +22,19 @@ export default function GradientRevealText({
       {chars.map((char, i) => (
         <motion.span
           key={i}
-          className="inline-block"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          className="inline-block text-white"
+          initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{
-            duration: 0.6,
+            duration: 0.5,
             delay: delay + i * (duration / chars.length),
             ease: 'easeOut',
           }}
+          style={{
+            textShadow: '0 0 20px rgba(255,255,255,0.1)',
+          }}
         >
-          <motion.span
-            className="inline-block"
-            style={{
-              background: 'linear-gradient(90deg, #0066FF, #00AADD, #FF6600, #0066FF)',
-              backgroundSize: '300% 100%',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-            animate={{
-              backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
-            }}
-            transition={{
-              duration: 6,
-              delay: delay + i * (duration / chars.length),
-              repeat: Infinity,
-              ease: 'linear',
-            }}
-          >
-            {char === ' ' ? '\u00A0' : char}
-          </motion.span>
+          {char === ' ' ? '\u00A0' : char}
         </motion.span>
       ))}
     </span>

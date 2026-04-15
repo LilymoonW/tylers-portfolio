@@ -23,7 +23,7 @@ export default function Hero() {
             className="mx-auto mb-6 w-20 h-20 md:w-28 md:h-28"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 3.2, ease: 'easeOut' }}
+            transition={{ duration: 0.8, delay: 1, ease: 'easeOut' }}
           >
             <Image
               src="/yoonLogo.png"
@@ -35,9 +35,9 @@ export default function Hero() {
             />
           </motion.div>
 
-          {/* Name - gradient reveal text */}
-          <h1 className="font-display text-[clamp(4rem,15vw,12rem)] leading-[0.9] uppercase tracking-tight">
-            <GradientRevealText text="Tyler Yoon" delay={3.5} duration={1.5} />
+          {/* Name - grainy distressed reveal */}
+          <h1 className="font-display text-[clamp(4rem,15vw,12rem)] leading-[0.9] uppercase tracking-tight text-grainy">
+            <GradientRevealText text="Tyler Yoon" delay={1.5} duration={1.2} />
           </h1>
 
           {/* Tagline */}
@@ -45,7 +45,7 @@ export default function Hero() {
             className="mt-4 text-lg md:text-xl text-white/60 max-w-md mx-auto"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 5, ease: 'easeOut' }}
+            transition={{ duration: 0.8, delay: 3, ease: 'easeOut' }}
           >
             VFX Editor & Visual Storyteller
           </motion.p>
@@ -55,7 +55,7 @@ export default function Hero() {
             className="mt-12"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 5.5 }}
+            transition={{ duration: 0.6, delay: 3.5 }}
           >
             <motion.div
               className="w-[1px] h-12 bg-white/30 mx-auto"
