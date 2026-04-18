@@ -1,5 +1,6 @@
 "use client"
 
+import { bannerTypeTimelineYear } from "@/config/scrollBanner"
 import { useRef } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
 import type { ReactNode } from "react"
@@ -53,9 +54,7 @@ function TimelineItem({ item, index }: { item: { title: string; content: ReactNo
       <div className="absolute left-[25px] md:left-[25px] top-1 w-[10px] h-[10px] rounded-full bg-bright-blue border-2 border-bg z-10" />
 
       {/* Year/title */}
-      <h3 className="font-display text-3xl md:text-4xl uppercase text-bright-blue mb-4">
-        {item.title}
-      </h3>
+      <h3 className={bannerTypeTimelineYear}>{item.title}</h3>
 
       {/* Content */}
       <div>{item.content}</div>

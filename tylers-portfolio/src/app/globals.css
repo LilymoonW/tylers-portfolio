@@ -1,48 +1,74 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-deep-blue: #0033CC;
-  --color-bright-blue: #0066FF;
-  --color-cyan: #00AADD;
-  --color-orange: #FF6600;
-  --color-red: #FF0000;
+  --color-deep-blue: #627AA3;
+  --color-bright-blue: #627AA3;
+  --color-cyan: #0088AA;
+  --color-orange: #FF6B00;
+  --color-red: #0033CC;
   --color-indigo: #2D0050;
-  --color-bg: #0A0A0F;
-  --color-surface: #111118;
-  --color-muted: #888899;
-  --color-white: #FFFFFF;
-  --color-black: #000000;
+  /* Warm paper field + ink (slightly softened vs pure black for print-like contrast) */
+  --color-bg: #ebe6de;
+  --color-surface: #e0dbd2;
+  --color-muted: #000000;
+  --color-ink: #1c1916;
+  --color-white: #ebe6de;
+  --color-black: #111111;
 
   --font-display: var(--font-bebas-neue);
   --font-body: var(--font-dm-sans);
 }
 
 :root {
-  --grain-opacity: 0.04;
-  color-scheme: dark;
+  --base-font-size: 16px;
+  /* Sitewide SVG grain (`GrainOverlay`) — nudge up/down for more / less tooth */
+  --grain-opacity: 0.16;
+  color-scheme: light;
 }
 
 html {
+  font-size: var(--base-font-size);
+
+  /* Framer Motion useScroll(document.scrollingElement + target) needs a non-static root */
+  position: relative;
   background-color: var(--color-bg);
-  color: var(--color-white);
+  color: var(--color-ink);
 }
 
 body {
+  position: relative;
   font-family: var(--font-body), system-ui, sans-serif;
   overflow-x: hidden;
 }
 
-/* Film grain overlay */
-.grain::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
+/* Preserve text exactly as typed by default. */
+html,
+body,
+body * {
+  text-transform: none;
+}
+
+/* `GrainOverlay` mounts `.grain` (SVG) — procedural noise, see component */
+
+/* Procedural film grain on large gradients (paper bridge, brands bridge — `page.tsx`, `BrandsGradientBridge.tsx`) */
+.gradient-film-grain {
   pointer-events: none;
-  opacity: var(--grain-opacity);
-  background-image: url('/textures/grain.png');
-  background-repeat: repeat;
+  opacity: 0.22;
   mix-blend-mode: overlay;
+  background-image:
+    repeating-radial-gradient(circle at 12% 18%, rgb(255 255 255 / 0.07) 0 0.4px, transparent 0.5px 14px),
+    repeating-radial-gradient(circle at 78% 64%, rgb(0 0 0 / 0.09) 0 0.35px, transparent 0.45px 11px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gradient-film-grain {
+    opacity: 0.08;
+  }
+}
+
+/* Contact signature: ink reads into the warm paper field (intro seam SVG is portaled, no multiply). */
+.signature-marker-on-paper {
+  mix-blend-mode: multiply;
 }
 
 /* Custom scrollbar */
@@ -61,8 +87,8 @@ body {
 
 /* Selection */
 ::selection {
-  background: var(--color-bright-blue);
-  color: var(--color-white);
+  background: color-mix(in srgb, var(--color-bright-blue) 35%, transparent);
+  color: var(--color-ink);
 }
 
 /* Reduced motion */
@@ -75,7 +101,7 @@ body {
     scroll-behavior: auto !important;
   }
 
-  .grain::after {
+  .grain {
     display: none;
   }
 }
@@ -108,10 +134,65 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: url('/textures/grain.png');
-  background-repeat: repeat;
-  background-size: 150px;
   mix-blend-mode: multiply;
-  opacity: 0.6;
+  opacity: 0.35;
   pointer-events: none;
+  background-image:
+    repeating-radial-gradient(circle at 12% 18%, rgb(0 0 0 / 0.045) 0 0.4px, transparent 0.5px 14px),
+    repeating-radial-gradient(circle at 78% 64%, rgb(0 0 0 / 0.035) 0 0.35px, transparent 0.45px 11px);
+}
+
+/* BrandMarquee — `--brand-marquee-duration` + `--brand-marquee-logo-gap` on `#brands` */
+@keyframes brand-marquee-scroll {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+#brands .brand-marquee-row {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* `gap` = clear space between logo bounding boxes (variable width cells) → center distance = w₁/2 + gap + w₂/2 */
+#brands .brand-marquee-strip {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  align-items: center;
+  box-sizing: border-box;
+  gap: var(--brand-marquee-logo-gap, 64px);
+  padding-inline-end: var(--brand-marquee-logo-gap, 64px);
+  white-space: nowrap;
+}
+
+#brands .brand-marquee-track {
+  display: flex;
+  flex-direction: row;
+  width: max-content;
+  will-change: transform;
+  animation: brand-marquee-scroll var(--brand-marquee-duration, 60s) linear infinite;
+}
+
+#brands .brand-marquee-track--reverse {
+  animation-direction: reverse;
+}
+
+/* FeaturedWork — period set in px on `.featured-work-track` as `--featured-period` (measured in JS). */
+@keyframes featured-work-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(-1 * var(--featured-period, 0px)), 0, 0);
+  }
+}
+
+.featured-work-track {
+  animation: featured-work-marquee var(--featured-duration, 45s) linear infinite;
+  backface-visibility: hidden;
 }

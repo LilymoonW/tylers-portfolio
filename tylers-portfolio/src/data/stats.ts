@@ -1,8 +1,32 @@
 import type { Stat } from '@/types'
 
 export const stats: Stat[] = [
-  { id: 'views', label: 'Total Views', value: 15000000, suffix: '+', format: 'abbreviated' },
-  { id: 'projects', label: 'Projects', value: 200, suffix: '+', format: 'number' },
-  { id: 'brands', label: 'Brands', value: 50, suffix: '+', format: 'number' },
-  { id: 'years', label: 'Years Experience', value: 5, suffix: '', format: 'number' },
+  {
+    id: 'views',
+    label: 'views',
+    value: 45000000,
+    suffix: '+',
+    format: 'abbreviated',
+  },
+  {
+    id: 'projects',
+    label: 'engagements',
+    value: 5000000,
+    suffix: '+',
+    format: 'abbreviated',
+  },
+  {
+    id: 'brands',
+    label: 'brands',
+    value: 50,
+    suffix: '+',
+    format: 'number',
+  },
+  {
+    id: 'years',
+    label: 'years experience',
+    value: 5,
+    suffix: '+',
+    format: 'number',
+  },
 ]

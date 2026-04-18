@@ -4,7 +4,14 @@ import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useVideoModal } from './VideoModalProvider'
 import { tools as allTools } from '@/data/tools'
-import { formatNumber } from '@/lib/utils'
+import { formatNumber, cn } from '@/lib/utils'
+import {
+  bannerTypeBase,
+  bannerTypeChip,
+  bannerTypeModalAccent,
+  bannerTypeModalMeta,
+  bannerTypeModalTitle,
+} from '@/config/scrollBanner'
 
 export default function VideoModal() {
   const { activeProject, closeModal } = useVideoModal()
@@ -69,20 +76,20 @@ export default function VideoModal() {
             <div className="p-6 space-y-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-display text-2xl uppercase">{activeProject.title}</h3>
-                  <p className="text-muted text-sm mt-1">
+                  <h3 className={bannerTypeModalTitle}>{activeProject.title}</h3>
+                  <p className={bannerTypeModalMeta}>
                     {activeProject.brand} &middot; {activeProject.role} &middot; {activeProject.year}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-bright-blue font-display text-lg">
+                  <p className={bannerTypeModalAccent}>
                     {formatNumber(activeProject.viewCount, 'abbreviated')} views
                   </p>
-                  <p className="text-muted text-xs">{activeProject.duration}</p>
+                  <p className={cn(bannerTypeBase, 'text-xs leading-none text-muted')}>
+                    {activeProject.duration}
+                  </p>
                 </div>
               </div>
-
-              <p className="text-white/70 text-sm">{activeProject.description}</p>
 
               {/* Tools used */}
               <div className="flex flex-wrap gap-2">
@@ -91,7 +98,10 @@ export default function VideoModal() {
                   return tool ? (
                     <span
                       key={toolId}
-                      className="px-3 py-1 rounded-full bg-white/5 text-xs text-muted border border-white/10"
+                      className={cn(
+                        bannerTypeChip,
+                        'rounded-full border border-white/10 bg-white/5 px-3 py-1 text-muted'
+                      )}
                     >
                       {tool.name}
                     </span>

@@ -1,8 +1,9 @@
 "use client"
 
+import { bannerTypeControl } from "@/config/scrollBanner"
+import { cn } from "@/lib/utils"
 import { useState, useRef, type ReactNode } from "react"
 import { motion } from "framer-motion"
-import { cn } from "@/lib/utils"
 
 interface PinContainerProps {
   children: ReactNode
@@ -74,7 +75,7 @@ function PinPerspective({
             rel="noopener noreferrer"
             className="pointer-events-auto relative z-10 flex items-center space-x-1 rounded-full bg-zinc-950 px-4 py-0.5 ring-1 ring-white/10"
           >
-            <span className="relative z-20 inline-block text-xs font-bold text-white py-0.5">
+            <span className={cn(bannerTypeControl, "relative z-20 inline-block py-0.5 text-white")}>
               {title}
             </span>
             <span className="absolute -bottom-0 left-[1.125rem] h-px w-[calc(100%-2.25rem)] bg-gradient-to-r from-bright-blue/0 via-bright-blue/90 to-bright-blue/0 transition-opacity duration-500" />

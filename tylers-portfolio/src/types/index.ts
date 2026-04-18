@@ -1,18 +1,22 @@
 export interface Project {
+  /** Matches `title`; used for `#work/` deep links (encoded in the URL hash). */
   id: string
   title: string
   duration: string
   year: number
   role: string
   thumbnail: string
+  /** Optional zoom on raster thumbnail (e.g. 1.08); parent should clip with `overflow-hidden`. */
+  thumbnailZoom?: number
   embedUrl: string
   tags: string[]
   viewCount: number
   toolsUsed: string[]
   brand: string
-  description: string
   featured: boolean
   aspectRatio: '9:16' | '16:9' | '1:1'
+  /** If set, featured carousel (and similar) opens this URL in a new tab instead of the video modal. */
+  cardHref?: string
 }
 
 export interface Brand {
@@ -20,6 +24,8 @@ export interface Brand {
   name: string
   logoSrc: string
   url?: string
+  /** Multiplier for marquee slot height + image max height (default 1). Slot width stays the global logo column width. */
+  logoScale?: number
 }
 
 export interface Tool {
@@ -36,6 +42,7 @@ export interface Stat {
   suffix?: string
   prefix?: string
   format: 'number' | 'abbreviated'
+  displayValue?: string
 }
 
 export interface NavSection {

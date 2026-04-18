@@ -2,24 +2,34 @@
 
 import { useRef } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
+import { SIGNATURE_OUTER_TEXTURE_OPACITY } from '@/config/signature'
+import { cn } from '@/lib/utils'
+
+const SIG_SRC = '/sig-2026.svg'
+const SIGNATURE_INK_TEXTURE_SRC = '/textures/marker-ink-texture.png'
+
+/** Same viewBox aspect as `sig-2026.svg` for layout + texture mask alignment. */
+const SIG_ASPECT_RATIO = 1456.98 / 556.61
+const SIGNATURE_INNER_BLUR_PX = 10
+
+/**
+ * Contact-section signature — Tailwind on the aspect wrapper below.
+ * Tweak `max-w-[min(20rem,88vw)]` (~320px cap) or pass `imageClassName` from `ContactSection`.
+ */
+const SIGNATURE_WRAP_CLASS = 'relative mx-auto w-full max-w-[min(20rem,88vw)]'
 
 interface SignatureRevealProps {
-  /** SVG path data for the signature. Replace with Tyler's actual signature path. */
-  pathData?: string
   className?: string
-  color?: string
-  strokeWidth?: number
+  /** Extra classes on the signature frame (e.g. `max-w-md`) — merged with `SIGNATURE_WRAP_CLASS`. */
+  imageClassName?: string
+  /** Decorative signature in contact — empty string hides from assistive tech. */
+  alt?: string
 }
 
-// Placeholder signature path -- replace with Tyler's actual signature SVG path
-const DEFAULT_SIGNATURE_PATH =
-  'M10,80 Q30,10 50,80 T90,80 T130,80 Q150,60 170,80 Q190,40 210,80 L230,80 Q250,30 270,80 L290,75'
-
 export default function SignatureReveal({
-  pathData = DEFAULT_SIGNATURE_PATH,
   className = '',
-  color = '#0066FF',
-  strokeWidth = 2,
+  imageClassName,
+  alt = '',
 }: SignatureRevealProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -28,39 +38,44 @@ export default function SignatureReveal({
     offset: ['start 0.8', 'end 0.6'],
   })
 
-  const pathLength = useTransform(scrollYProgress, [0, 1], [0, 1])
-  const opacity = useTransform(scrollYProgress, [0, 0.1], [0, 1])
+  const opacity = useTransform(scrollYProgress, [0.2, 0.58], [0, 1], { clamp: true })
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      <svg
-        viewBox="0 0 300 100"
-        className="w-full max-w-md mx-auto"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
+    <div ref={containerRef} className={cn('relative z-20', className)}>
+      <motion.div
+        style={{ opacity, aspectRatio: SIG_ASPECT_RATIO }}
+        className={cn('signature-marker-on-paper', SIGNATURE_WRAP_CLASS, imageClassName)}
       >
-        {/* Shadow/ghost path */}
-        <path
-          d={pathData}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={0.1}
-        />
-        {/* Animated drawing path */}
-        <motion.path
-          d={pathData}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <div
+          className="absolute inset-0"
+          style={{ filter: `blur(${SIGNATURE_INNER_BLUR_PX}px)` }}
+        >
+          <img
+            src={SIG_SRC}
+            alt={alt}
+            className="absolute inset-0 block h-full w-full object-contain select-none"
+          />
+        </div>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 select-none"
           style={{
-            pathLength,
-            opacity,
+            mixBlendMode: 'screen',
+            opacity: SIGNATURE_OUTER_TEXTURE_OPACITY,
+            backgroundImage: `url(${SIGNATURE_INK_TEXTURE_SRC})`,
+            backgroundRepeat: 'repeat',
+            backgroundSize: '220px 220px',
+            maskImage: `url(${SIG_SRC})`,
+            maskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskImage: `url(${SIG_SRC})`,
+            WebkitMaskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
           }}
         />
-      </svg>
+      </motion.div>
     </div>
   )
 }

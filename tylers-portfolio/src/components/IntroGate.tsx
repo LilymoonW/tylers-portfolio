@@ -1,75 +1,32 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
-import { useScrollLock } from '@/hooks/useScrollLock'
+import { motion, useTransform } from 'framer-motion'
+import { introVideoScaleForProgress } from '@/config/introMotion'
+import { useIntroScroll } from '@/components/providers/IntroScrollProvider'
 
 export default function IntroGate() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [locked, setLocked] = useState(true)
-
-  // Lock scroll for 2 seconds on load -- pure fullscreen, nothing else visible
-  useScrollLock(locked)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLocked(false), 2000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end start'],
-  })
-
-  // Video starts fullscreen, shrinks as you scroll, stays centered, keeps playing
-  const scale = useTransform(scrollYProgress, [0, 1], [1, 0.3])
-  const borderRadius = useTransform(scrollYProgress, [0, 0.5, 1], [0, 12, 20])
+  const { introSectionRef, scrollYProgress } = useIntroScroll()
+  const scale = useTransform(scrollYProgress, introVideoScaleForProgress)
 
   return (
-    <>
-      {/* Fullscreen overlay that covers ALL UI (grain, cursor, nav) during lock */}
-      <AnimatePresence>
-        {locked && (
-          <motion.div
-            className="fixed inset-0 z-[99999] bg-black"
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <video
-              src="/video/intro-placeholder.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="w-full h-full object-cover"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Scroll-driven shrinking video */}
-      <section ref={containerRef} className="relative h-[200vh]">
-        <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
-          <motion.div
-            className="relative overflow-hidden"
-            style={{
-              width: '100vw',
-              height: '100vh',
-              scale,
-              borderRadius,
-            }}
-          >
-            <video
-              src="/video/intro-placeholder.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="w-full h-full object-cover"
-            />
-          </motion.div>
-        </div>
-      </section>
-    </>
+    <section ref={introSectionRef} className="relative z-20 h-[200vh]">
+      <div className="sticky top-0 h-[100dvh] min-h-0 w-full overflow-hidden">
+        {/* Full-viewport bleed; full width on wide / horizontal screens (no max-width cap) */}
+        <motion.div
+          data-intro-video-layer
+          className="relative z-10 h-full w-full max-w-none overflow-hidden rounded-none bg-black shadow-none"
+          style={{ scale }}
+        >
+          <video
+            src="/video/intro-placeholder.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        </motion.div>
+      </div>
+    </section>
   )
 }

@@ -19,13 +19,26 @@ export function useVideoModal() {
   return useContext(VideoModalContext)
 }
 
+function decodeWorkHashId(fragment: string) {
+  try {
+    return decodeURIComponent(fragment)
+  } catch {
+    return fragment
+  }
+}
+
 export default function VideoModalProvider({ children, projects }: { children: ReactNode; projects: Project[] }) {
   const [activeProject, setActiveProject] = useState<Project | null>(null)
 
   const openModal = useCallback((project: Project) => {
+    const external = project.cardHref?.trim()
+    if (external) {
+      window.open(external, '_blank', 'noopener,noreferrer')
+      return
+    }
     setActiveProject(project)
     document.body.classList.add('scroll-locked')
-    window.history.pushState(null, '', `#work/${project.id}`)
+    window.history.pushState(null, '', `#work/${encodeURIComponent(project.id)}`)
   }, [])
 
   const closeModal = useCallback(() => {
@@ -39,9 +52,17 @@ export default function VideoModalProvider({ children, projects }: { children: R
     const handlePopState = () => {
       const hash = window.location.hash
       if (hash.startsWith('#work/')) {
-        const id = hash.replace('#work/', '')
-        const project = projects.find((p) => p.id === id)
+        const raw = hash.slice('#work/'.length)
+        const id = decodeWorkHashId(raw)
+        const project =
+          projects.find((p) => p.id === id) ?? projects.find((p) => p.id === raw)
         if (project) {
+          const external = project.cardHref?.trim()
+          if (external) {
+            window.open(external, '_blank', 'noopener,noreferrer')
+            window.history.replaceState(null, '', window.location.pathname)
+            return
+          }
           setActiveProject(project)
           document.body.classList.add('scroll-locked')
           return
