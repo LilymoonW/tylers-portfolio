@@ -1,11 +1,15 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import { useId, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useSpring } from 'framer-motion'
 
 import baseEyeAsset from '@/assets/base-eye.png'
 import eyeBaseDownAsset from '@/assets/eye-base-down.png'
 import eyeBaseUpAsset from '@/assets/eye-base-up.png'
+import eyeBlink1Asset from '@/assets/eye-blink-1.png'
+import eyeBlink2Asset from '@/assets/eye-blink-2.png'
+import eyeBlink3Asset from '@/assets/eye-blink-3.png'
 import eyeGlintAccentAsset from '@/assets/eye-glint-accent.png'
 import eyeGlintAsset from '@/assets/eye-glint.png'
 
@@ -20,6 +24,42 @@ const eyeBaseUpHref = bundledAssetHref(eyeBaseUpAsset)
 const eyeBaseDownHref = bundledAssetHref(eyeBaseDownAsset)
 const eyeGlintHref = bundledAssetHref(eyeGlintAsset)
 const eyeGlintAccentHref = bundledAssetHref(eyeGlintAccentAsset)
+const eyeBlink1Href = bundledAssetHref(eyeBlink1Asset)
+const eyeBlink2Href = bundledAssetHref(eyeBlink2Asset)
+const eyeBlink3Href = bundledAssetHref(eyeBlink3Asset)
+const EYE_BLINK_HREFS = [eyeBlink1Href, eyeBlink2Href, eyeBlink3Href] as const
+
+/** Sclera / lid art (`base-eye`, `eye-base-up`, `eye-base-down`). */
+function isEyeWhiteLidHref(href: string): boolean {
+  return href === baseEyeHref || href === eyeBaseUpHref || href === eyeBaseDownHref
+}
+
+function isBlinkLidHref(href: string): boolean {
+  return (EYE_BLINK_HREFS as readonly string[]).includes(href)
+}
+
+/** Opacity for sclera lid art (`base-eye`, `eye-base-up`, `eye-base-down`) — matched strength. */
+const EYE_NEUTRAL_BASE_LID_OPACITY = 0.78
+/** Subtracted from base / up / down lid `<image>` opacity only (0–1); glints unchanged. */
+const EYE_LID_OPACITY_SUB = 0.06
+/** Subtracted from blink-1 / blink-2 / blink-3 lid `<image>` opacity (0–1). */
+const EYE_BLINK_FRAME_OPACITY_SUB = 0.1
+/** Brightness on the masked glint stack (rear + specular, pointer-driven). */
+const EYE_GLINT_BRIGHTNESS = 1.22
+
+function lidSurfaceOpacity(href: string): number {
+  if (isBlinkLidHref(href)) return Math.max(0, 1 - EYE_BLINK_FRAME_OPACITY_SUB)
+  if (isEyeWhiteLidHref(href)) return Math.max(0, EYE_NEUTRAL_BASE_LID_OPACITY - EYE_LID_OPACITY_SUB)
+  return 1
+}
+
+function eyeGlintMaskGroupStyle(show: boolean): CSSProperties {
+  return {
+    opacity: show ? 1 : 0,
+    mixBlendMode: 'screen',
+    filter: `brightness(${EYE_GLINT_BRIGHTNESS})`,
+  }
+}
 
 const EYE_VIEWBOX_W = 1024
 const EYE_VIEWBOX_H = 576
@@ -37,29 +77,25 @@ const EYE_GLINT_SCALE = EYE_BALL_SCALE * EYE_GLINT_SIZE
 const EYE_BALL_DISPLAY_SCALE = EYE_GLINT_SCALE * 1.2
 
 const POINTER_MAX_SCREEN_PX = 96
-/**
- * Screen-space cap for upward glint travel (negative Y). Smaller than
- * `POINTER_MAX_SCREEN_PX` so the eye does not sit too high when the pointer is
- * above the banner (e.g. right after scrolling).
- */
-/** Upward travel cap (screen px) for the rear eyeball only. */
-const POINTER_MAX_SCREEN_UP_PX = 16
+/** Upward travel cap (screen px) for the rear eyeball; tighter than horizontal so gaze stays lower when the pointer is above the banner. */
+const POINTER_MAX_SCREEN_UP_PX = 18
 /**
  * Looser upward cap for the front specular only (`eyeGlintAccent`); rear still uses
  * `POINTER_MAX_SCREEN_UP_PX`.
  */
-const FRONT_SPECULAR_MAX_SCREEN_UP_PX = 28
+const FRONT_SPECULAR_MAX_SCREEN_UP_PX = 31
 /** Shared horizontal baseline (rear layer applies `REAR_EYEBALL_POINTER_MULT_*` on top). */
-const POINTER_SENSITIVITY_X = 1.02
-const POINTER_SENSITIVITY_Y = 0.2
+const POINTER_SENSITIVITY_X = 1.06
+/** Shared vertical sensitivity for both glint layers (rear + specular). */
+const POINTER_SENSITIVITY_Y = 0.22
 /**
  * Frontmost masked layer (`eyeGlintAccent`, second `<g>`): strong motion.
  * Rear / larger layer (`eyeGlint`, first `<g>`): `POINTER_SENSITIVITY_*` × rear multipliers — slower.
  */
-const FRONT_SPECULAR_POINTER_SENSITIVITY_X = 0.97
-const FRONT_SPECULAR_POINTER_Y_MULT = 1
-const REAR_EYEBALL_POINTER_MULT_X = 0.52
-const REAR_EYEBALL_POINTER_MULT_Y = 0.68
+const FRONT_SPECULAR_POINTER_SENSITIVITY_X = 1.1
+const FRONT_SPECULAR_POINTER_Y_MULT = 1.06
+const REAR_EYEBALL_POINTER_MULT_X = 0.6
+const REAR_EYEBALL_POINTER_MULT_Y = 0.74
 
 /** Looser than before so motion trails the cursor slightly. */
 const spring = { stiffness: 60, damping: 22, mass: 0.55 }
@@ -73,8 +109,55 @@ const EYE_BASE_TWITCH_INTERVAL_MS = 1000 / EYE_BASE_TWITCH_FPS
 /** `scaleY` on alternating ticks (< 1 = squashed). */
 const EYE_BASE_TWITCH_SCALE_Y = 0.978
 
+/** Closing leg: 1→2 and 2→3 (indices 0→1→2), each step this long (ms). */
+const BLINK_CLOSE_FRAME_MS = 220
+/** Opening leg: 3→2 and 2→1 (indices 2→1→0), faster steps (ms). */
+const BLINK_OPEN_FRAME_MS = 120
+/** Full blink duration until gaze art returns (ms). */
+const BLINK_TOTAL_MS = 3 * BLINK_CLOSE_FRAME_MS + 2 * BLINK_OPEN_FRAME_MS
+/** Random idle gap before the next blink starts. */
+const EYE_BLINK_IDLE_MIN_MS = 2800
+const EYE_BLINK_IDLE_MAX_MS = 7200
+
 function eyeBaseTwitchTransform(scaleY: number) {
   return `translate(${EYE_PIVOT_X} ${EYE_PIVOT_Y}) scale(1 ${scaleY}) translate(${-EYE_PIVOT_X} ${-EYE_PIVOT_Y})`
+}
+
+/** Two-eye layout: each eye shrunk to this fraction of the original. */
+const DUAL_EYE_SCALE = 0.4
+/** Horizontal offset from SVG center to each eye's center (viewBox px). */
+const DUAL_EYE_OFFSET_X = EYE_VIEWBOX_W * 0.18
+
+/**
+ * Ellipse around each eye's center that defines the hover "close" hit area (viewBox units, before
+ * each eye's wrap scale is applied — so the screen-space radius is this × `DUAL_EYE_SCALE`).
+ * Decrease to make the eyes only react when the cursor is very close; increase for a looser feel.
+ */
+const EYE_HOVER_HIT_RX = EYE_VIEWBOX_W * 0.22
+const EYE_HOVER_HIT_RY = EYE_VIEWBOX_H * 0.28
+/**
+ * Added to `-ox + …` for the mirrored eye’s glints (viewBox X). **Larger → highlight shifts
+ * screen-left**; use smaller numbers to nudge **screen-right**.
+ */
+const RIGHT_EYE_GLINT_BIAS_X = 5
+/** Extra term in CSS px (→ viewBox via current SVG width); same direction rule as `BIAS_X`. */
+const RIGHT_EYE_GLINT_NUDGE_SCREEN_PX = 1
+/** Pull right-eye glints (rear + specular) this many CSS px toward the screen-right edge. */
+const RIGHT_EYE_GLINT_SHIFT_RIGHT_SCREEN_PX = 50
+
+function viewBoxXFromScreenPx(svgWidthPx: number, screenPx: number) {
+  if (!Number.isFinite(svgWidthPx) || svgWidthPx < 1) return 0
+  return screenPx * (EYE_VIEWBOX_W / svgWidthPx)
+}
+
+/**
+ * Outer wrapper transform that positions/shrinks one eye. `signX = -1` mirrors the whole eye
+ * (base art + bounds mask + glint layers) horizontally, making the right-hand copy.
+ */
+function eyeWrapTransform(offsetX: number, signX: 1 | -1) {
+  const cx = EYE_VIEWBOX_W * 0.5
+  const cy = EYE_VIEWBOX_H * 0.5
+  return `translate(${cx} ${cy}) translate(${offsetX} 0) scale(${signX * DUAL_EYE_SCALE} ${DUAL_EYE_SCALE}) translate(${-cx} ${-cy})`
 }
 
 /**
@@ -91,6 +174,12 @@ function lidFrameFromNyLid(nyLid: number): EyeBaseFrame {
   if (nyLid <= EYE_BASE_NY_UP_ENTER) return 'up'
   if (nyLid >= EYE_BASE_NY_DOWN_ENTER) return 'down'
   return 'neutral'
+}
+
+function lidImageHref(frame: EyeBaseFrame): string {
+  if (frame === 'up') return eyeBaseUpHref
+  if (frame === 'down') return eyeBaseDownHref
+  return baseEyeHref
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -144,6 +233,9 @@ export default function BrandsEyeBanner() {
   const baseEyeTwitchRef = useRef<SVGGElement>(null)
   const glintGroupRef = useRef<SVGGElement>(null)
   const accentGlintGroupRef = useRef<SVGGElement>(null)
+  const rightBaseEyeTwitchRef = useRef<SVGGElement>(null)
+  const rightGlintGroupRef = useRef<SVGGElement>(null)
+  const rightAccentGlintGroupRef = useRef<SVGGElement>(null)
   const glintX = useSpring(0, spring)
   const glintY = useSpring(0, spring)
   const accentGlintX = useSpring(0, spring)
@@ -151,6 +243,85 @@ export default function BrandsEyeBanner() {
 
   const [eyeBaseFrame, setEyeBaseFrame] = useState<EyeBaseFrame>('neutral')
   const eyeBaseFrameRef = useRef<EyeBaseFrame>('neutral')
+  /** `null` = use gaze lid art; else index into `EYE_BLINK_HREFS` for both eyes. */
+  const [blinkFrameIdx, setBlinkFrame] = useState<number | null>(null)
+
+  /**
+   * Per-eye hover overrides. When non-null the eye renders this blink frame instead of the shared
+   * idle-blink frame, so each eye can close independently while the cursor is over it and stay
+   * closed until the cursor leaves. The shared `blinkFrameIdx` timer keeps running underneath so
+   * the two eyes still blink in unison whenever neither is in hover-override.
+   */
+  const [leftHoverIdx, setLeftHoverIdx] = useState<number | null>(null)
+  const [rightHoverIdx, setRightHoverIdx] = useState<number | null>(null)
+  const leftHoverIdxRef = useRef<number | null>(null)
+  const rightHoverIdxRef = useRef<number | null>(null)
+  const leftHoverTimers = useRef<number[]>([])
+  const rightHoverTimers = useRef<number[]>([])
+
+  const writeLeftHover = (v: number | null) => {
+    leftHoverIdxRef.current = v
+    setLeftHoverIdx(v)
+  }
+  const writeRightHover = (v: number | null) => {
+    rightHoverIdxRef.current = v
+    setRightHoverIdx(v)
+  }
+  const clearHoverTimers = (arr: React.MutableRefObject<number[]>) => {
+    arr.current.forEach((id) => window.clearTimeout(id))
+    arr.current = []
+  }
+
+  const startHoverClose = (side: 'L' | 'R') => {
+    const timers = side === 'L' ? leftHoverTimers : rightHoverTimers
+    const write = side === 'L' ? writeLeftHover : writeRightHover
+    const ref = side === 'L' ? leftHoverIdxRef : rightHoverIdxRef
+    clearHoverTimers(timers)
+    const start = ref.current === null ? 0 : ref.current
+    write(start)
+    let d = 0
+    for (let f = start + 1; f <= 2; f += 1) {
+      d += BLINK_CLOSE_FRAME_MS
+      timers.current.push(window.setTimeout(() => write(f), d))
+    }
+  }
+
+  const startHoverOpen = (side: 'L' | 'R') => {
+    const timers = side === 'L' ? leftHoverTimers : rightHoverTimers
+    const write = side === 'L' ? writeLeftHover : writeRightHover
+    const ref = side === 'L' ? leftHoverIdxRef : rightHoverIdxRef
+    clearHoverTimers(timers)
+    const start = ref.current
+    if (start === null) return
+    let d = 0
+    for (let f = start - 1; f >= 0; f -= 1) {
+      d += BLINK_OPEN_FRAME_MS
+      timers.current.push(window.setTimeout(() => write(f), d))
+    }
+    d += BLINK_OPEN_FRAME_MS
+    timers.current.push(window.setTimeout(() => write(null), d))
+  }
+
+  useEffect(() => {
+    const leftTimersRef = leftHoverTimers
+    const rightTimersRef = rightHoverTimers
+    return () => {
+      clearHoverTimers(leftTimersRef)
+      clearHoverTimers(rightTimersRef)
+    }
+  }, [])
+
+  /**
+   * Pre-decode the blink frames once on mount. Without this, the first swap to a fresh `<image>`
+   * href takes a tick to decode and the specular briefly shows through between frames.
+   */
+  useEffect(() => {
+    EYE_BLINK_HREFS.forEach((href) => {
+      const img = new window.Image()
+      img.decoding = 'async'
+      img.src = href
+    })
+  }, [])
 
   const syncGlintGroupTransform = (g: SVGGElement | null, ox: number, oy: number) => {
     if (!g) return
@@ -160,10 +331,22 @@ export default function BrandsEyeBanner() {
     )
   }
 
+  const rightGlintBiasX = () => {
+    const w = svgRef.current?.getBoundingClientRect().width ?? EYE_VIEWBOX_W
+    return (
+      RIGHT_EYE_GLINT_BIAS_X +
+      viewBoxXFromScreenPx(w, RIGHT_EYE_GLINT_NUDGE_SCREEN_PX) -
+      viewBoxXFromScreenPx(w, RIGHT_EYE_GLINT_SHIFT_RIGHT_SCREEN_PX)
+    )
+  }
+
   useLayoutEffect(() => {
     const ox = EYE_BALL_REST_OFFSET_X
+    const rx = rightGlintBiasX()
     syncGlintGroupTransform(glintGroupRef.current, ox, 0)
     syncGlintGroupTransform(accentGlintGroupRef.current, ox, 0)
+    syncGlintGroupTransform(rightGlintGroupRef.current, -ox + rx, 0)
+    syncGlintGroupTransform(rightAccentGlintGroupRef.current, -ox + rx, 0)
   }, [])
 
   useEffect(() => {
@@ -172,13 +355,56 @@ export default function BrandsEyeBanner() {
     let squished = false
     const tick = () => {
       squished = !squished
-      const g = baseEyeTwitchRef.current
-      if (g) {
-        g.setAttribute('transform', eyeBaseTwitchTransform(squished ? EYE_BASE_TWITCH_SCALE_Y : 1))
-      }
+      const t = eyeBaseTwitchTransform(squished ? EYE_BASE_TWITCH_SCALE_Y : 1)
+      baseEyeTwitchRef.current?.setAttribute('transform', t)
+      rightBaseEyeTwitchRef.current?.setAttribute('transform', t)
     }
     const id = window.setInterval(tick, EYE_BASE_TWITCH_INTERVAL_MS)
     return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const timeouts: number[] = []
+    let cancelled = false
+
+    const playBlink = () => {
+      if (cancelled) return
+      setBlinkFrame(0)
+      const t1 = BLINK_CLOSE_FRAME_MS
+      const t2 = 2 * BLINK_CLOSE_FRAME_MS
+      const t3 = 3 * BLINK_CLOSE_FRAME_MS
+      const t4 = 3 * BLINK_CLOSE_FRAME_MS + BLINK_OPEN_FRAME_MS
+      const t5 = BLINK_TOTAL_MS
+      timeouts.push(window.setTimeout(() => !cancelled && setBlinkFrame(1), t1))
+      timeouts.push(window.setTimeout(() => !cancelled && setBlinkFrame(2), t2))
+      timeouts.push(window.setTimeout(() => !cancelled && setBlinkFrame(1), t3))
+      timeouts.push(window.setTimeout(() => !cancelled && setBlinkFrame(0), t4))
+      timeouts.push(window.setTimeout(() => !cancelled && setBlinkFrame(null), t5))
+    }
+
+    const scheduleAfterIdle = () => {
+      const idle =
+        EYE_BLINK_IDLE_MIN_MS + Math.random() * (EYE_BLINK_IDLE_MAX_MS - EYE_BLINK_IDLE_MIN_MS)
+      timeouts.push(
+        window.setTimeout(() => {
+          if (cancelled) return
+          playBlink()
+          timeouts.push(
+            window.setTimeout(() => {
+              if (!cancelled) scheduleAfterIdle()
+            }, BLINK_TOTAL_MS),
+          )
+        }, idle),
+      )
+    }
+
+    scheduleAfterIdle()
+    return () => {
+      cancelled = true
+      timeouts.forEach((t) => window.clearTimeout(t))
+    }
   }, [])
 
   /**
@@ -206,8 +432,11 @@ export default function BrandsEyeBanner() {
       lastOy = oy
       lastAx = ax
       lastAy = ay
+      const rx = rightGlintBiasX()
       syncGlintGroupTransform(glintGroupRef.current, ox, oy)
       syncGlintGroupTransform(accentGlintGroupRef.current, ax, ay)
+      syncGlintGroupTransform(rightGlintGroupRef.current, -ox + rx, oy)
+      syncGlintGroupTransform(rightAccentGlintGroupRef.current, -ax + rx, ay)
     }
     rafId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafId)
@@ -278,6 +507,23 @@ export default function BrandsEyeBanner() {
     }
   }, [glintX, glintY, accentGlintX, accentGlintY])
 
+  /** Hover override wins over the shared idle blink, so each eye can close independently. */
+  const leftFrameIdx = leftHoverIdx ?? blinkFrameIdx
+  const rightFrameIdx = rightHoverIdx ?? blinkFrameIdx
+  const leftLidHref =
+    leftFrameIdx !== null ? EYE_BLINK_HREFS[leftFrameIdx] : lidImageHref(eyeBaseFrame)
+  const rightLidHref =
+    rightFrameIdx !== null ? EYE_BLINK_HREFS[rightFrameIdx] : lidImageHref(eyeBaseFrame)
+  const leftLidKey = leftFrameIdx !== null ? `blink-${leftFrameIdx}` : eyeBaseFrame
+  const rightLidKey = rightFrameIdx !== null ? `blink-${rightFrameIdx}` : eyeBaseFrame
+  const leftLidOpacity = lidSurfaceOpacity(leftLidHref)
+  const rightLidOpacity = lidSurfaceOpacity(rightLidHref)
+  /** Blink frames share one opacity curve (see `lidSurfaceOpacity`). */
+  const blinkCoverOpacity = lidSurfaceOpacity(eyeBlink1Href)
+
+  const showLeftGlints = Boolean(boundsPaintHref && leftFrameIdx === null)
+  const showRightGlints = Boolean(boundsPaintHref && rightFrameIdx === null)
+
   return (
     <div
       className="relative z-[1] flex w-full justify-center px-[2vw] py-0"
@@ -289,7 +535,7 @@ export default function BrandsEyeBanner() {
           viewBox={`0 0 ${EYE_VIEWBOX_W} ${EYE_VIEWBOX_H}`}
           className="block h-auto w-full"
           role="img"
-          aria-label="Stylized illustration of an eye"
+          aria-label="Stylized illustration of two eyes"
         >
           {boundsPaintHref ? (
             <defs>
@@ -335,49 +581,117 @@ export default function BrandsEyeBanner() {
             />
           ) : null}
 
-          <g ref={baseEyeTwitchRef} transform={eyeBaseTwitchTransform(1)}>
-            <image
-              key={eyeBaseFrame}
-              href={
-                eyeBaseFrame === 'up'
-                  ? eyeBaseUpHref
-                  : eyeBaseFrame === 'down'
-                    ? eyeBaseDownHref
-                    : baseEyeHref
-              }
-              width={EYE_VIEWBOX_W}
-              height={EYE_VIEWBOX_H}
-              preserveAspectRatio="none"
+          <g transform={eyeWrapTransform(-DUAL_EYE_OFFSET_X, 1)}>
+            <g ref={baseEyeTwitchRef} transform={eyeBaseTwitchTransform(1)}>
+              <image
+                key={`L-${leftLidKey}`}
+                href={leftLidHref}
+                width={EYE_VIEWBOX_W}
+                height={EYE_VIEWBOX_H}
+                preserveAspectRatio="none"
+                opacity={leftLidOpacity}
+              />
+            </g>
+
+            <g mask={boundsPaintHref ? `url(#${maskId})` : undefined} style={eyeGlintMaskGroupStyle(showLeftGlints)}>
+              <rect width={EYE_VIEWBOX_W} height={EYE_VIEWBOX_H} fill="#000000" />
+              <g ref={glintGroupRef}>
+                <image
+                  href={eyeGlintHref}
+                  width={EYE_VIEWBOX_W}
+                  height={EYE_VIEWBOX_H}
+                  preserveAspectRatio="none"
+                />
+              </g>
+              <g ref={accentGlintGroupRef} style={{ mixBlendMode: 'screen' }}>
+                <image
+                  href={eyeGlintAccentHref}
+                  width={EYE_VIEWBOX_W}
+                  height={EYE_VIEWBOX_H}
+                  preserveAspectRatio="none"
+                />
+              </g>
+            </g>
+
+            {/* Blink overlays on top of glints; `visibility` toggles avoid decode flicker. */}
+            {EYE_BLINK_HREFS.map((coverHref, i) => (
+              <image
+                key={`L-blink-cover-${i}`}
+                href={coverHref}
+                width={EYE_VIEWBOX_W}
+                height={EYE_VIEWBOX_H}
+                preserveAspectRatio="none"
+                opacity={blinkCoverOpacity}
+                visibility={leftFrameIdx === i ? 'visible' : 'hidden'}
+              />
+            ))}
+
+            <ellipse
+              cx={EYE_PIVOT_X}
+              cy={EYE_PIVOT_Y}
+              rx={EYE_HOVER_HIT_RX}
+              ry={EYE_HOVER_HIT_RY}
+              fill="transparent"
+              style={{ cursor: 'inherit' }}
+              onPointerEnter={() => startHoverClose('L')}
+              onPointerLeave={() => startHoverOpen('L')}
             />
           </g>
 
-          <g
-            mask={boundsPaintHref ? `url(#${maskId})` : undefined}
-            style={{
-              opacity: boundsPaintHref ? 1 : 0,
-              mixBlendMode: 'screen',
-            }}
-          >
-            <g ref={glintGroupRef} transform="translate(0 0)">
+          <g transform={eyeWrapTransform(DUAL_EYE_OFFSET_X, -1)}>
+            <g ref={rightBaseEyeTwitchRef} transform={eyeBaseTwitchTransform(1)}>
               <image
-                href={eyeGlintHref}
+                key={`R-${rightLidKey}`}
+                href={rightLidHref}
                 width={EYE_VIEWBOX_W}
                 height={EYE_VIEWBOX_H}
                 preserveAspectRatio="none"
+                opacity={rightLidOpacity}
               />
             </g>
-            <g
-              ref={accentGlintGroupRef}
-              transform="translate(0 0)"
-              style={{ mixBlendMode: 'screen' }}
-            >
+
+            <g mask={boundsPaintHref ? `url(#${maskId})` : undefined} style={eyeGlintMaskGroupStyle(showRightGlints)}>
+              <rect width={EYE_VIEWBOX_W} height={EYE_VIEWBOX_H} fill="#000000" />
+              <g ref={rightGlintGroupRef}>
+                <image
+                  href={eyeGlintHref}
+                  width={EYE_VIEWBOX_W}
+                  height={EYE_VIEWBOX_H}
+                  preserveAspectRatio="none"
+                />
+              </g>
+              <g ref={rightAccentGlintGroupRef} style={{ mixBlendMode: 'screen' }}>
+                <image
+                  href={eyeGlintAccentHref}
+                  width={EYE_VIEWBOX_W}
+                  height={EYE_VIEWBOX_H}
+                  preserveAspectRatio="none"
+                />
+              </g>
+            </g>
+
+            {EYE_BLINK_HREFS.map((coverHref, i) => (
               <image
-                href={eyeGlintAccentHref}
+                key={`R-blink-cover-${i}`}
+                href={coverHref}
                 width={EYE_VIEWBOX_W}
                 height={EYE_VIEWBOX_H}
                 preserveAspectRatio="none"
+                opacity={blinkCoverOpacity}
+                visibility={rightFrameIdx === i ? 'visible' : 'hidden'}
               />
-            </g>
+            ))}
+
+            <ellipse
+              cx={EYE_PIVOT_X}
+              cy={EYE_PIVOT_Y}
+              rx={EYE_HOVER_HIT_RX}
+              ry={EYE_HOVER_HIT_RY}
+              fill="transparent"
+              style={{ cursor: 'inherit' }}
+              onPointerEnter={() => startHoverClose('R')}
+              onPointerLeave={() => startHoverOpen('R')}
+            />
           </g>
         </svg>
       </div>
