@@ -9,6 +9,10 @@ export interface Project {
   /** Optional zoom on raster thumbnail (e.g. 1.08); parent should clip with `overflow-hidden`. */
   thumbnailZoom?: number
   embedUrl: string
+  /** Optional hosted video path for the dedicated `/work/[projectId]` page media block. */
+  videoSrc?: string
+  /** Optional per-project bio shown on the dedicated `/work/[projectId]` page. */
+  bio?: string
   tags: string[]
   viewCount: number
   toolsUsed: string[]
