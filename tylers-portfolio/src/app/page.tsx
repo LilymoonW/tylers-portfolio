@@ -51,7 +51,10 @@ export default function Home() {
       <div className="relative z-[15] overflow-visible" style={{ backgroundColor: '#000000' }}>
         <BrandsGradientBridge />
         <BrandMarquee topRow={brandMarqueeTopRow} bottomRow={brandMarqueeBottomRow} />
-        <BrandsEyeBanner />
+        <div className="hide-in-portrait">
+          <BrandsEyeBanner />
+        </div>
+        <div className="show-in-portrait h-[clamp(6.5rem,17vh,12rem)]" />
         <FeaturedWork projects={featuredProjects} />
         <StatsSection stats={stats} />
         <div className="pointer-events-none relative left-1/2 z-[1] w-screen shrink-0 -translate-x-1/2 -mt-[min(10vh,6.5rem)]">

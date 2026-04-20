@@ -100,6 +100,12 @@ const FRONT_SPECULAR_POINTER_SENSITIVITY_X = 1.1
 const FRONT_SPECULAR_POINTER_Y_MULT = 1.06
 const REAR_EYEBALL_POINTER_MULT_X = 0.6
 const REAR_EYEBALL_POINTER_MULT_Y = 0.74
+// Portrait should track pointer more subtly to avoid crowding on narrow layouts.
+const PORTRAIT_POINTER_MOTION_SCALE = 0.58
+const EYE_SECTION_BLUR_MAX_PX = 2
+const EYE_SECTION_BLUR_MIN_PX = 0
+// Portion around viewport center where blur stays pinned at 0.
+const EYE_SECTION_ZERO_BLUR_ZONE = 0.3
 
 /** Looser than before so motion trails the cursor slightly. */
 const spring = { stiffness: 60, damping: 22, mass: 0.55 }
@@ -258,6 +264,9 @@ export default function BrandsEyeBanner() {
    */
   const [leftHoverIdx, setLeftHoverIdx] = useState<number | null>(null)
   const [rightHoverIdx, setRightHoverIdx] = useState<number | null>(null)
+  const [portraitLayout, setPortraitLayout] = useState(false)
+  const [veryTallPortraitLayout, setVeryTallPortraitLayout] = useState(false)
+  const [sectionBlurPx, setSectionBlurPx] = useState(EYE_SECTION_BLUR_MAX_PX)
   const leftHoverIdxRef = useRef<number | null>(null)
   const rightHoverIdxRef = useRef<number | null>(null)
   const leftHoverTimers = useRef<number[]>([])
@@ -312,6 +321,70 @@ export default function BrandsEyeBanner() {
     return () => {
       clearHoverTimers(leftTimersRef)
       clearHoverTimers(rightTimersRef)
+    }
+  }, [])
+
+  // Portrait screens need less negative spacing + softer fade distances to
+  // prevent section overlap while keeping desktop composition unchanged.
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: portrait)')
+    const sync = () => {
+      const isPortrait = mq.matches
+      setPortraitLayout(isPortrait)
+      if (!isPortrait) {
+        setVeryTallPortraitLayout(false)
+        return
+      }
+      const ratio = window.innerHeight / Math.max(window.innerWidth, 1)
+      setVeryTallPortraitLayout(ratio >= 2.0)
+    }
+    sync()
+    mq.addEventListener('change', sync)
+    window.addEventListener('resize', sync)
+    return () => {
+      mq.removeEventListener('change', sync)
+      window.removeEventListener('resize', sync)
+    }
+  }, [])
+
+  // Ease blur down when the section nears viewport center, then increase it
+  // again as it moves away.
+  useEffect(() => {
+    let rafId = 0
+    const updateBlur = () => {
+      rafId = 0
+      const svg = svgRef.current
+      if (!svg) return
+      const rect = svg.getBoundingClientRect()
+      const vh = Math.max(window.innerHeight, 1)
+      const sectionCenterY = rect.top + rect.height * 0.5
+      const viewportCenterY = vh * 0.5
+      const normalizedDistance = clamp(
+        Math.abs(sectionCenterY - viewportCenterY) / (vh * 0.5),
+        0,
+        1,
+      )
+      const beyondZeroZone = clamp(
+        (normalizedDistance - EYE_SECTION_ZERO_BLUR_ZONE) / (1 - EYE_SECTION_ZERO_BLUR_ZONE),
+        0,
+        1,
+      )
+      const nextBlur =
+        EYE_SECTION_BLUR_MIN_PX +
+        (EYE_SECTION_BLUR_MAX_PX - EYE_SECTION_BLUR_MIN_PX) * beyondZeroZone
+      setSectionBlurPx(nextBlur)
+    }
+    const scheduleBlurUpdate = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(updateBlur)
+    }
+    scheduleBlurUpdate()
+    window.addEventListener('scroll', scheduleBlurUpdate, { passive: true })
+    window.addEventListener('resize', scheduleBlurUpdate)
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId)
+      window.removeEventListener('scroll', scheduleBlurUpdate)
+      window.removeEventListener('resize', scheduleBlurUpdate)
     }
   }, [])
 
@@ -466,6 +539,7 @@ export default function BrandsEyeBanner() {
       }
 
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      const motionScale = portraitLayout ? PORTRAIT_POINTER_MOTION_SCALE : 1
 
       const txPxRear = clamp(
         nx * POINTER_MAX_SCREEN_PX * POINTER_SENSITIVITY_X * REAR_EYEBALL_POINTER_MULT_X,
@@ -475,8 +549,8 @@ export default function BrandsEyeBanner() {
       const rawTyPxRear =
         ny * POINTER_MAX_SCREEN_PX * POINTER_SENSITIVITY_Y * REAR_EYEBALL_POINTER_MULT_Y
       const tyPxRear = clamp(rawTyPxRear, -POINTER_MAX_SCREEN_UP_PX, POINTER_MAX_SCREEN_PX)
-      glintX.set(txPxRear * (EYE_VIEWBOX_W / r.width))
-      glintY.set(tyPxRear * (EYE_VIEWBOX_H / r.height))
+      glintX.set(txPxRear * motionScale * (EYE_VIEWBOX_W / r.width))
+      glintY.set(tyPxRear * motionScale * (EYE_VIEWBOX_H / r.height))
 
       const txPxFront = clamp(
         nx * POINTER_MAX_SCREEN_PX * FRONT_SPECULAR_POINTER_SENSITIVITY_X,
@@ -490,8 +564,8 @@ export default function BrandsEyeBanner() {
         -FRONT_SPECULAR_MAX_SCREEN_UP_PX,
         POINTER_MAX_SCREEN_PX,
       )
-      accentGlintX.set(txPxFront * (EYE_VIEWBOX_W / r.width))
-      accentGlintY.set(tyPxFront * (EYE_VIEWBOX_H / r.height))
+      accentGlintX.set(txPxFront * motionScale * (EYE_VIEWBOX_W / r.width))
+      accentGlintY.set(tyPxFront * motionScale * (EYE_VIEWBOX_H / r.height))
     }
 
     const reset = () => {
@@ -509,7 +583,7 @@ export default function BrandsEyeBanner() {
       window.removeEventListener('pointermove', setFromPointer)
       window.removeEventListener('blur', reset)
     }
-  }, [glintX, glintY, accentGlintX, accentGlintY])
+  }, [glintX, glintY, accentGlintX, accentGlintY, portraitLayout])
 
   /** Hover override wins over the shared idle blink, so each eye can close independently. */
   const leftFrameIdx = leftHoverIdx ?? blinkFrameIdx
@@ -530,8 +604,28 @@ export default function BrandsEyeBanner() {
 
   return (
     <div
-      className="relative z-[1] -mt-10 -mb-20 flex w-full justify-center px-[2vw] py-0"
-      style={{ backgroundColor: '#000000' }}
+      className="relative z-[1] flex w-full justify-center px-[2vw] py-0"
+      style={{
+        marginTop: portraitLayout
+          ? veryTallPortraitLayout
+            ? 'calc((-1 * clamp(2rem, 4.5vh, 3.75rem)) + 42px)'
+            : 'calc((-1 * clamp(2rem, 4.5vh, 3.75rem)) + 20px)'
+          : 'calc(-1 * clamp(5rem, 9vw, 8rem))',
+        marginBottom: portraitLayout
+          ? 'calc(-1 * clamp(2.5rem, 5vh, 4.5rem))'
+          : 'calc(-1 * clamp(5rem, 9vw, 8rem))',
+        filter: `blur(${sectionBlurPx.toFixed(2)}px)`,
+        backgroundColor: '#000000',
+        backgroundImage: portraitLayout
+          ? 'linear-gradient(to bottom, transparent 0%, #000000 22%, #000000 100%)'
+          : 'linear-gradient(to bottom, transparent 0%, #000000 32%, #000000 100%)',
+        WebkitMaskImage: portraitLayout
+          ? 'linear-gradient(to bottom, transparent 0%, black 18%, black 100%)'
+          : 'linear-gradient(to bottom, transparent 0%, black 26%, black 100%)',
+        maskImage: portraitLayout
+          ? 'linear-gradient(to bottom, transparent 0%, black 18%, black 100%)'
+          : 'linear-gradient(to bottom, transparent 0%, black 26%, black 100%)',
+      }}
     >
       <div className="relative w-full max-w-[min(96vw,2000px)]">
         <svg

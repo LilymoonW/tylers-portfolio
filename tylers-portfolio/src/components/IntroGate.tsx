@@ -6,6 +6,7 @@ import {
   useMotionValueEvent,
   useTransform,
 } from 'framer-motion'
+import Link from 'next/link'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   introAllWorkLabel,
@@ -160,15 +161,17 @@ export default function IntroGate() {
             paddingRight: sideInsetPx,
           }}
         >
-          <p
+          <Link
+            href="/work"
             className={cn(
               bannerTypeBase,
-              'min-w-0 shrink text-left leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl',
+              'pointer-events-auto min-w-0 shrink text-left leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl hover:underline underline-offset-4',
             )}
-            aria-live="polite"
+            data-cursor="expand"
+            aria-label="Go to all work page"
           >
-            {allWorkText}
-          </p>
+            <span aria-live="polite">{allWorkText}</span>
+          </Link>
           <p
             className={cn(
               bannerTypeBase,

@@ -48,6 +48,32 @@ body * {
   text-transform: none;
 }
 
+/* Force uppercase only on `/work/[projectId]` template content. */
+.project-page-uppercase,
+.project-page-uppercase * {
+  text-transform: uppercase !important;
+}
+
+/* Allow project bio copy to use natural sentence case. */
+.project-page-bio,
+.project-page-bio * {
+  text-transform: none !important;
+}
+
+@media (orientation: portrait) {
+  .hide-in-portrait {
+    display: none !important;
+  }
+
+  .show-in-portrait {
+    display: block !important;
+  }
+}
+
+.show-in-portrait {
+  display: none;
+}
+
 /* `GrainOverlay` mounts `.grain` (SVG) — procedural noise, see component */
 
 /* Procedural film grain on large gradients (paper bridge, brands bridge — `page.tsx`, `BrandsGradientBridge.tsx`) */
