@@ -1,17 +1,29 @@
 import { projects } from '@/data/projects'
 import { brandMarqueeBottomRow, brandMarqueeTopRow } from '@/data/brands'
 import { stats } from '@/data/stats'
+import dynamic from 'next/dynamic'
 import IntroGate from '@/components/IntroGate'
 import IntroWaveDivider from '@/components/IntroWaveDivider'
 import ScrollNav from '@/components/ScrollNav'
 import { IntroScrollProvider } from '@/components/providers/IntroScrollProvider'
-import BrandMarquee from '@/components/BrandMarquee'
-import BrandsEyeBanner from '@/components/BrandsEyeBanner'
-import BrandsGradientBridge from '@/components/BrandsGradientBridge'
-import FeaturedWork from '@/components/FeaturedWork'
-import StatsSection from '@/components/StatsSection'
 import VideoModalProvider from '@/components/VideoModalProvider'
-import VideoModal from '@/components/VideoModal'
+
+const BrandsGradientBridge = dynamic(() => import('@/components/BrandsGradientBridge'), {
+  loading: () => <div className="h-[120vh] w-full bg-black" aria-hidden />,
+})
+const BrandMarquee = dynamic(() => import('@/components/BrandMarquee'), {
+  loading: () => <div className="h-[260px] w-full bg-black" aria-hidden />,
+})
+const BrandsEyeBanner = dynamic(() => import('@/components/BrandsEyeBanner'), {
+  loading: () => <div className="h-[260px] w-full bg-black" aria-hidden />,
+})
+const FeaturedWork = dynamic(() => import('@/components/FeaturedWork'), {
+  loading: () => <div className="h-[600px] w-full bg-black" aria-hidden />,
+})
+const StatsSection = dynamic(() => import('@/components/StatsSection'), {
+  loading: () => <div className="h-[320px] w-full bg-black" aria-hidden />,
+})
+const VideoModal = dynamic(() => import('@/components/VideoModal'))
 
 const featuredProjects = projects.filter((p) => p.featured)
 

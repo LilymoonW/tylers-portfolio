@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
+import { useInViewActive } from '@/hooks/useInViewActive'
 
 /* -----------------------------------------------------------------------
  *  EDIT THESE TO CHANGE THE GRADIENT COLORS.
@@ -12,11 +13,11 @@ const GRADIENT_COLORS = {
   /** Darkest color — sits at the center of the ellipse. */
   core: '#000000',
   /** Deep accent between core and mid. */
-  inner: 'rgb(0, 0, 0)',
+  inner: 'rgb(37, 40, 58)',
   /** Mid band color. */
   mid: 'rgb(0, 0, 0)',
   /** Brightest band just before the halo fades out. */
-  outer: 'rgb(45, 52, 66)',
+  outer: 'rgb(103, 118, 148)',
 }
 
 /** Halo tint — use for blend bands next to the bridge (stats / about). */
@@ -53,6 +54,7 @@ export default function BrandsGradientBridge({
   placement = 'above-brands',
 }: Props) {
   const trackRef = useRef<HTMLElement | null>(null)
+  const isActive = useInViewActive(trackRef, { rootMargin: '260px 0px', threshold: 0 })
   const { scrollYProgress } = useScroll({
     target: trackRef,
     offset: ['start end', 'end start'],
@@ -90,12 +92,12 @@ export default function BrandsGradientBridge({
           }}
         />
         <motion.div
-          className="absolute inset-0 will-change-transform"
+          className={`absolute inset-0 ${isActive ? 'will-change-transform' : ''}`}
           style={{
             background: `radial-gradient(ellipse 110vw 110% at 50% ${radialY}, ${c.core} 0%, ${c.inner} 18%, ${c.mid} 34%, ${c.outer} 56%, transparent 86%)`,
-            scale,
-            y,
-            opacity,
+            scale: isActive ? scale : 1,
+            y: isActive ? y : '0%',
+            opacity: isActive ? opacity : 0,
             transformOrigin,
             filter: `blur(${blurPx}px)`,
           }}

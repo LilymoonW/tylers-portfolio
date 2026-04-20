@@ -19,7 +19,7 @@ export const brandMarqueeAsSeenOnConfig: BrandMarqueeAsSeenOnConfig = {
   marginBottomPx: 32,
   offsetYPx: 0,
   labelTextClassName: '',
-  labelFontSizePx: 24,
+  labelFontSizePx: 30,
 }
 
 /** Logo rows — edit `src/data/brands.ts`; raster files in `public/images/brands/logos/`. */

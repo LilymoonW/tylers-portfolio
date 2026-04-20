@@ -13,7 +13,7 @@
   --color-muted: #000000;
   --color-ink: #1c1916;
   --color-white: #ebe6de;
-  --color-black: #111111;
+  --color-black: #000000;
 
   --font-display: var(--font-bebas-neue);
   --font-body: var(--font-dm-sans);
@@ -22,7 +22,7 @@
 :root {
   --base-font-size: 16px;
   /* Sitewide SVG grain (`GrainOverlay`) — nudge up/down for more / less tooth */
-  --grain-opacity: 0.16;
+  --grain-opacity: 0.2;
   color-scheme: light;
 }
 
@@ -176,6 +176,7 @@ body * {
   width: max-content;
   will-change: transform;
   animation: brand-marquee-scroll var(--brand-marquee-duration, 60s) linear infinite;
+  animation-play-state: var(--brand-marquee-play-state, running);
 }
 
 #brands .brand-marquee-track--reverse {
@@ -194,5 +195,6 @@ body * {
 
 .featured-work-track {
   animation: featured-work-marquee var(--featured-duration, 45s) linear infinite;
+  animation-play-state: var(--featured-play-state, running);
   backface-visibility: hidden;
 }

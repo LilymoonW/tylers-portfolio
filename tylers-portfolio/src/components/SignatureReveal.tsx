@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { SIGNATURE_OUTER_TEXTURE_OPACITY } from '@/config/signature'
 import { cn } from '@/lib/utils'
+import Image from 'next/image'
 
 const SIG_SRC = '/sig-2026.svg'
 const SIGNATURE_INK_TEXTURE_SRC = '/textures/marker-ink-texture.png'
@@ -50,9 +51,11 @@ export default function SignatureReveal({
           className="absolute inset-0"
           style={{ filter: `blur(${SIGNATURE_INNER_BLUR_PX}px)` }}
         >
-          <img
+          <Image
             src={SIG_SRC}
             alt={alt}
+            fill
+            sizes="(max-width: 768px) 88vw, 20rem"
             className="absolute inset-0 block h-full w-full object-contain select-none"
           />
         </div>

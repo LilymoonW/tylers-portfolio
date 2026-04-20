@@ -50,7 +50,7 @@ export default function CustomCursor() {
     // Hide on touch devices
     if (window.matchMedia('(pointer: coarse)').matches) return
 
-    setIsVisible(true)
+    const showId = window.requestAnimationFrame(() => setIsVisible(true))
     document.documentElement.style.cursor = 'none'
 
     const onMouseMove = (e: MouseEvent) => {
@@ -76,6 +76,7 @@ export default function CustomCursor() {
     document.addEventListener('mouseleave', onMouseLeave, true)
 
     return () => {
+      window.cancelAnimationFrame(showId)
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseenter', onMouseEnter, true)
       document.removeEventListener('mouseleave', onMouseLeave, true)

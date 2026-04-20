@@ -44,13 +44,17 @@ const EYE_NEUTRAL_BASE_LID_OPACITY = 0.78
 const EYE_LID_OPACITY_SUB = 0.06
 /** Subtracted from blink-1 / blink-2 / blink-3 lid `<image>` opacity (0–1). */
 const EYE_BLINK_FRAME_OPACITY_SUB = 0.1
+/** Final multiplier on every lid `<image>` (sclera, gaze frames, blink overlays). Glints unchanged. */
+const EYE_LID_OPACITY_MULT = 0.6
 /** Brightness on the masked glint stack (rear + specular, pointer-driven). */
 const EYE_GLINT_BRIGHTNESS = 1.22
 
 function lidSurfaceOpacity(href: string): number {
-  if (isBlinkLidHref(href)) return Math.max(0, 1 - EYE_BLINK_FRAME_OPACITY_SUB)
-  if (isEyeWhiteLidHref(href)) return Math.max(0, EYE_NEUTRAL_BASE_LID_OPACITY - EYE_LID_OPACITY_SUB)
-  return 1
+  let raw: number
+  if (isBlinkLidHref(href)) raw = Math.max(0, 1 - EYE_BLINK_FRAME_OPACITY_SUB)
+  else if (isEyeWhiteLidHref(href)) raw = Math.max(0, EYE_NEUTRAL_BASE_LID_OPACITY - EYE_LID_OPACITY_SUB)
+  else raw = 1
+  return raw * EYE_LID_OPACITY_MULT
 }
 
 function eyeGlintMaskGroupStyle(show: boolean): CSSProperties {
@@ -526,7 +530,7 @@ export default function BrandsEyeBanner() {
 
   return (
     <div
-      className="relative z-[1] flex w-full justify-center px-[2vw] py-0"
+      className="relative z-[1] -mt-10 -mb-20 flex w-full justify-center px-[2vw] py-0"
       style={{ backgroundColor: '#000000' }}
     >
       <div className="relative w-full max-w-[min(96vw,2000px)]">

@@ -6,6 +6,7 @@ import { formatNumber } from '@/lib/utils'
 import { bannerTypeStatLabel, bannerTypeStatValue } from '@/config/scrollBanner'
 import { useLenis } from '@/components/providers/SmoothScrollProvider'
 import ScrollReveal from './ScrollReveal'
+import { useInViewActive } from '@/hooks/useInViewActive'
 
 /** Section center this far below the viewport bottom → progress 0; ramp begins before the row is on screen. */
 function progressLeadBelowViewport(vh: number) {
@@ -20,6 +21,7 @@ const STATS_COUNT_COMPLETE_VIEWPORT_Y_FRACTION = 0.45
 
 export default function StatsSection({ stats }: { stats: Stat[] }) {
   const ref = useRef<HTMLElement | null>(null)
+  const isActive = useInViewActive(ref, { rootMargin: '220px 0px', threshold: 0 })
   const lenis = useLenis()
   const [scrollProgress, setScrollProgress] = useState(0)
 
@@ -49,17 +51,19 @@ export default function StatsSection({ stats }: { stats: Stat[] }) {
   }, [])
 
   useEffect(() => {
-    measure()
+    if (!isActive) return
     const onScroll = () => measure()
+    const initialMeasureId = window.requestAnimationFrame(onScroll)
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
     lenis?.on('scroll', onScroll)
     return () => {
+      window.cancelAnimationFrame(initialMeasureId)
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
       lenis?.off('scroll', onScroll)
     }
-  }, [lenis, measure])
+  }, [isActive, lenis, measure])
 
   return (
     <section id="stats" ref={ref} className="relative overflow-visible py-24">

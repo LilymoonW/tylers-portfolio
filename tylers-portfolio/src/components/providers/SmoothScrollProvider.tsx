@@ -22,7 +22,7 @@ export default function SmoothScrollProvider({ children }: { children: ReactNode
       touchMultiplier: 2,
     })
 
-    setLenis(instance)
+    const publishId = requestAnimationFrame(() => setLenis(instance))
 
     function raf(time: number) {
       instance.raf(time)
@@ -32,6 +32,7 @@ export default function SmoothScrollProvider({ children }: { children: ReactNode
     requestAnimationFrame(raf)
 
     return () => {
+      cancelAnimationFrame(publishId)
       instance.destroy()
       setLenis(null)
     }

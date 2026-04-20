@@ -6,6 +6,7 @@ import { motion, useScroll, useTransform } from 'framer-motion'
 import type { MotionValue } from 'framer-motion'
 import { useLenis } from '@/components/providers/SmoothScrollProvider'
 import { SIGNATURE_OUTER_TEXTURE_OPACITY } from '@/config/signature'
+import { useInViewActive } from '@/hooks/useInViewActive'
 
 /**
  * Paths from `public/sig-2026.svg` — keep `d` strings in sync when replacing the asset.
@@ -97,8 +98,9 @@ export default function IntroWaveDivider() {
   const rawMaskId = useId()
   const maskId = rawMaskId.replace(/:/g, '')
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const [mounted, setMounted] = useState(false)
+  const [mounted] = useState(() => typeof window !== 'undefined')
   const [pos, setPos] = useState<{ cx: number; cy: number } | null>(null)
+  const isActive = useInViewActive(sentinelRef, { rootMargin: '260px 0px', threshold: 0 })
   const lenis = useLenis()
   /** Nudge vs sentinel top so the mark sits between scaled video and brands block (+ = lower on screen). */
   const BRANDS_TEXT_MIDPOINT_OFFSET_PX = 111
@@ -122,11 +124,7 @@ export default function IntroWaveDivider() {
   }, [BRANDS_TEXT_MIDPOINT_OFFSET_PX])
 
   useLayoutEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useLayoutEffect(() => {
-    if (!mounted) return
+    if (!mounted || !isActive) return
     updatePosition()
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, { passive: true })
@@ -138,10 +136,11 @@ export default function IntroWaveDivider() {
       window.removeEventListener('scroll', updatePosition)
       lenis?.off('scroll', updatePosition)
     }
-  }, [lenis, mounted, updatePosition])
+  }, [isActive, lenis, mounted, updatePosition])
 
   const overlay =
     mounted &&
+    isActive &&
     typeof document !== 'undefined' &&
     pos &&
     createPortal(

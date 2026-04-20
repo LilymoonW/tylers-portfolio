@@ -13,6 +13,7 @@ import type { Project } from '@/types'
 import { ProjectThumbnailMedia } from './ProjectThumbnailMedia'
 import { useVideoModal } from './VideoModalProvider'
 import { formatNumber, cn } from '@/lib/utils'
+import { useInViewActive } from '@/hooks/useInViewActive'
 import {
   bannerTypeCardMeta,
   bannerTypeCardTitleLight,
@@ -24,6 +25,8 @@ import {
 const FEATURED_MARQUEE_PX_PER_SEC = 52
 
 export default function FeaturedWork({ projects }: { projects: Project[] }) {
+  const sectionRef = useRef<HTMLElement>(null)
+  const isActive = useInViewActive(sectionRef, { rootMargin: '0px', threshold: 0 })
   const trackRef = useRef<HTMLDivElement>(null)
   const [periodPx, setPeriodPx] = useState(0)
 
@@ -41,6 +44,7 @@ export default function FeaturedWork({ projects }: { projects: Project[] }) {
   }, [projects.length])
 
   useLayoutEffect(() => {
+    if (!isActive) return
     measurePeriod()
     const ro = new ResizeObserver(() => measurePeriod())
     const el = trackRef.current
@@ -52,14 +56,19 @@ export default function FeaturedWork({ projects }: { projects: Project[] }) {
       window.removeEventListener('resize', measurePeriod)
       window.cancelAnimationFrame(id)
     }
-  }, [measurePeriod])
+  }, [isActive, measurePeriod])
 
   const durationSec =
     periodPx > 0 ? Math.max(28, periodPx / FEATURED_MARQUEE_PX_PER_SEC) : 45
 
   return (
-    <section id="featured" className="overflow-hidden pt-0 pb-24">
-      <div className="relative">
+    <section id="featured" ref={sectionRef} className="relative z-[20] pt-0 pb-24">
+      {/*
+        Hide horizontal marquee bleed without clipping hover motion vertically: plain
+        `overflow-x-hidden` forces `overflow-y` to compute to `auto`, which chops off the
+        `whileHover` translateY on the cards. `overflow-x: clip` keeps Y visible per CSS Overflow 3.
+      */}
+      <div className="relative overflow-x-clip overflow-y-visible">
         <div
           ref={trackRef}
           className="featured-work-track relative flex w-max items-end gap-6 md:gap-8"
@@ -67,6 +76,7 @@ export default function FeaturedWork({ projects }: { projects: Project[] }) {
             {
               '--featured-period': `${periodPx}px`,
               '--featured-duration': `${durationSec}s`,
+              '--featured-play-state': isActive ? 'running' : 'paused',
             } as CSSProperties
           }
         >

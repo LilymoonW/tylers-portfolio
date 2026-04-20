@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import Image from 'next/image'
 
 const FALLBACK =
   'pointer-events-none absolute inset-0 z-0 bg-gradient-to-br from-deep-blue/80 via-indigo/60 to-surface'
@@ -26,11 +27,11 @@ export function ProjectThumbnailMedia({ src, className, zoom = 1 }: ProjectThumb
   }
 
   return (
-    <img
+    <Image
       src={src}
       alt=""
-      loading="lazy"
-      decoding="async"
+      fill
+      sizes="(max-width: 768px) 100vw, 50vw"
       onError={() => setFailed(true)}
       className={cn(
         'pointer-events-none absolute inset-0 z-0 h-full w-full object-cover',

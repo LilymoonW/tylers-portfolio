@@ -8,7 +8,13 @@ import {
 import { bannerTypeEyebrowLight } from '@/config/scrollBanner'
 import { cn } from '@/lib/utils'
 import ScrollReveal from './ScrollReveal'
-import type { CSSProperties } from 'react'
+import { useRef, type CSSProperties } from 'react'
+import Image from 'next/image'
+import { useInViewActive } from '@/hooks/useInViewActive'
+
+/** Clear → solid black; `rgb(0 0 0 / 0)` avoids `transparent`→black interpolation quirks. */
+const BRANDS_BACKDROP_GRADIENT =
+  'linear-gradient(to bottom, rgb(0 0 0 / 0) 0%, rgb(0 0 0 / 0) 56px, rgb(0 0 0 / 0.03) 112px, rgb(0 0 0 / 0.08) 168px, rgb(0 0 0 / 0.16) 220px, rgb(0 0 0 / 0.3) 280px, rgb(0 0 0 / 0.5) 340px, rgb(0 0 0 / 0.72) 400px, rgb(0 0 0 / 0.9) 460px, #000000 520px, #000000 100%)'
 
 function BrandLogoSlot({
   brand,
@@ -25,10 +31,12 @@ function BrandLogoSlot({
   const maxW = logoSlotMaxWidthPx
 
   const img = (
-    <img
+    <Image
       src={brand.logoSrc}
       alt={brand.name}
-      decoding="async"
+      width={maxW}
+      height={slotH}
+      sizes={`${maxW}px`}
       className="block h-auto w-auto max-w-full object-contain object-center opacity-50 grayscale transition-all duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0"
       style={{ maxHeight: slotH, maxWidth: maxW, width: 'auto', height: 'auto' }}
     />
@@ -124,6 +132,8 @@ export default function BrandMarquee({
   topRow: Brand[]
   bottomRow: Brand[]
 }) {
+  const sectionRef = useRef<HTMLElement>(null)
+  const isActive = useInViewActive(sectionRef, { rootMargin: '0px', threshold: 0 })
   const seen = brandMarqueeAsSeenOnConfig
   const tracks = brandMarqueeTracksConfig
   const seenStyle = {
@@ -137,26 +147,27 @@ export default function BrandMarquee({
   const brandsSectionStyle = {
     ['--brand-marquee-duration']: `${tracks.marqueeDurationSec}s`,
     ['--brand-marquee-logo-gap']: `${tracks.logoGapPx}px`,
+    ['--brand-marquee-play-state']: isActive ? 'running' : 'paused',
   } as CSSProperties
 
   return (
     <section
+      ref={sectionRef}
       id="brands"
-      className="relative z-[1] pt-16 pb-2 -mt-[200px] overflow-hidden"
+      className="relative z-[10] pt-16 pb-0 -mt-[200px] -mb-16"
       style={brandsSectionStyle}
     >
+      {/* Black only: opacity 0 → 1. Clipping lives on the marquee wrapper so negative `top` is not cut off. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 z-0"
+        className="pointer-events-none absolute left-0 right-0 z-0"
         style={{
-          background: '#000000',
-          WebkitMaskImage:
-            'linear-gradient(to bottom, transparent 0, #000 220px)',
-          maskImage:
-            'linear-gradient(to bottom, transparent 0, #000 220px)',
+          top: '-180px',
+          bottom: 0,
+          background: BRANDS_BACKDROP_GRADIENT,
         }}
       />
-      <div className="relative z-[1]">
+      <div className="relative z-[1] w-full min-w-0">
         <ScrollReveal>
           <p
             className={cn(
@@ -170,10 +181,7 @@ export default function BrandMarquee({
           </p>
         </ScrollReveal>
 
-        <div
-          className="flex flex-col"
-          style={{ gap: `${tracks.rowGapPx}px` }}
-        >
+        <div className="flex w-full min-w-0 flex-col" style={{ gap: `${tracks.rowGapPx}px` }}>
           <MarqueeTrack
             trackId="top"
             brands={topRow}
