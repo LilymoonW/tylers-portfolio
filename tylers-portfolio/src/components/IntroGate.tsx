@@ -131,7 +131,9 @@ export default function IntroGate() {
     if (!v) return
     v.muted = true
     v.defaultMuted = true
+    v.autoplay = true
     v.playsInline = true
+    v.setAttribute('autoplay', '')
     v.setAttribute('playsinline', '')
     v.setAttribute('webkit-playsinline', 'true')
   }, [])
@@ -145,9 +147,15 @@ export default function IntroGate() {
       return
     }
 
+    let destroyed = false
     const tryPlay = () => {
+      if (destroyed) return
+      if (document.visibilityState !== 'visible') return
       v.muted = true
+      v.defaultMuted = true
       requestAnimationFrame(() => {
+        if (destroyed) return
+        if (!v.paused) return
         void v.play().catch(() => {})
       })
     }
@@ -168,11 +176,33 @@ export default function IntroGate() {
     }
     window.addEventListener('pageshow', onPageShow)
 
+    // Mobile Safari/Chrome can pause at frame 0 right after reload.
+    // Retry briefly while the intro is active to force the first play state.
+    const playWatchdogId = window.setInterval(() => {
+      if (!isActive) return
+      if (v.paused && !v.ended) tryPlay()
+    }, 220)
+    const stopWatchdogId = window.setTimeout(() => {
+      window.clearInterval(playWatchdogId)
+    }, 2200)
+
+    const onPause = () => {
+      if (!isActive) return
+      if (v.currentTime <= 0.08 || document.visibilityState === 'visible') {
+        tryPlay()
+      }
+    }
+    v.addEventListener('pause', onPause)
+
     if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       tryPlay()
     }
 
     return () => {
+      destroyed = true
+      window.clearInterval(playWatchdogId)
+      window.clearTimeout(stopWatchdogId)
+      v.removeEventListener('pause', onPause)
       v.removeEventListener('loadeddata', onReady)
       v.removeEventListener('canplay', onReady)
       document.removeEventListener('visibilitychange', onVisibility)
