@@ -12,13 +12,11 @@ import { scrollBannerConfig } from '@/config/scrollBanner'
 import { cn } from '@/lib/utils'
 import { useLenis } from '@/components/providers/SmoothScrollProvider'
 import { useIntroScroll } from '@/components/providers/IntroScrollProvider'
-import { useIntroHeroMobileLayout } from '@/hooks/useCoarsePointer'
 
 export default function ScrollNav() {
   const lenis = useLenis()
   const { scrollYProgress } = useIntroScroll()
   const cfg = scrollBannerConfig
-  const heroMobileLayout = useIntroHeroMobileLayout()
 
   const vw = useMotionValue(0)
   useLayoutEffect(() => {
@@ -39,10 +37,6 @@ export default function ScrollNav() {
   }, [videoGapTop])
 
   useLayoutEffect(() => {
-    if (heroMobileLayout) {
-      videoGapTop.set(0)
-      return
-    }
     measureVideoTop()
     window.addEventListener('resize', measureVideoTop)
     window.addEventListener('scroll', measureVideoTop, { passive: true })
@@ -53,16 +47,11 @@ export default function ScrollNav() {
       window.removeEventListener('scroll', measureVideoTop)
       lenis?.off('scroll', onLenisScroll)
     }
-  }, [heroMobileLayout, lenis, measureVideoTop, videoGapTop])
+  }, [lenis, measureVideoTop])
 
-  useMotionValueEvent(scrollYProgress, 'change', () => {
-    if (heroMobileLayout) return
-    measureVideoTop()
-  })
+  useMotionValueEvent(scrollYProgress, 'change', measureVideoTop)
 
-  const videoScale = useTransform(scrollYProgress, (p) =>
-    heroMobileLayout ? 1 : introVideoScaleForProgress(p),
-  )
+  const videoScale = useTransform(scrollYProgress, introVideoScaleForProgress)
 
   const sideInsetPx = useTransform([videoScale, vw], ([s, w]) => {
     const sc = typeof s === 'number' ? s : 1
@@ -93,59 +82,8 @@ export default function ScrollNav() {
     cfg.rowPaddingYClassName,
   )
 
-  const navButtons = (
-    <>
-      <button
-        type="button"
-        onClick={scrollToTop}
-        className={cn(
-          cfg.labelClassName,
-          cfg.tylerExtraClassName,
-          'pointer-events-auto min-w-0 shrink text-left transition-opacity hover:opacity-80',
-        )}
-        data-cursor="expand"
-      >
-        TYLER
-      </button>
-
-      <button
-        type="button"
-        onClick={scrollToTop}
-        className={cn(
-          cfg.labelClassName,
-          cfg.yoonExtraClassName,
-          'pointer-events-auto min-w-0 shrink text-right transition-opacity hover:opacity-80',
-        )}
-        data-cursor="expand"
-      >
-        YOON
-      </button>
-    </>
-  )
-
-  if (heroMobileLayout) {
-    return (
-      <nav
-        className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-transparent pt-[max(env(safe-area-inset-top),10px)]"
-        suppressHydrationWarning
-      >
-        <div
-          className={cn(
-            rowClass,
-            'mx-auto w-full max-w-[min(100%,40rem)]',
-            'pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))]',
-          )}
-          style={{ height: cfg.heightPx }}
-        >
-          {navButtons}
-        </div>
-      </nav>
-    )
-  }
-
   return (
     <motion.nav
-      suppressHydrationWarning
       className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-transparent will-change-transform"
       style={{ y: navTopPx }}
     >
@@ -157,7 +95,31 @@ export default function ScrollNav() {
           paddingRight: sideInsetPx,
         }}
       >
-        {navButtons}
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className={cn(
+            cfg.labelClassName,
+            cfg.tylerExtraClassName,
+            'pointer-events-auto shrink-0 text-left transition-opacity hover:opacity-80',
+          )}
+          data-cursor="expand"
+        >
+          TYLER
+        </button>
+
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className={cn(
+            cfg.labelClassName,
+            cfg.yoonExtraClassName,
+            'pointer-events-auto shrink-0 text-right transition-opacity hover:opacity-80',
+          )}
+          data-cursor="expand"
+        >
+          YOON
+        </button>
       </motion.div>
     </motion.nav>
   )

@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import Lenis from 'lenis'
 
-import { getIntroHeroMobileSnapshot } from '@/hooks/useCoarsePointer'
 import { isSafariBrowser } from '@/lib/browser'
 
 const LenisContext = createContext<Lenis | null>(null)
@@ -20,9 +19,6 @@ export default function SmoothScrollProvider({ children }: { children: ReactNode
     if (prefersReducedMotion) return
     // Lenis + WebKit scroll compositing is a common source of jank on Safari; use native scroll.
     if (isSafariBrowser()) return
-    // Phone-like viewports: same criteria as intro hero (coarse pointer *or* narrow + no hover).
-    // Mobile Chrome can report `pointer: fine`; still skip Lenis so scroll matches Framer/DOM reads.
-    if (getIntroHeroMobileSnapshot()) return
 
     const instance = new Lenis({
       duration: 1.05,
