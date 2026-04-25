@@ -1,27 +1,3 @@
-export type BrandMarqueeAsSeenOnConfig = {
-  /** Copy shown above the marquee */
-  label: string
-  /** Space below the line before the logo row (px) — matches former `mb-8` at 32 */
-  marginBottomPx: number
-  /** Fine vertical nudge: positive moves down (px) */
-  offsetYPx: number
-  /** Extra Tailwind classes on the line (merged last), e.g. `tracking-widest` or `portrait:text-base` */
-  labelTextClassName?: string
-  /** Font size in px at all breakpoints; omit to use `bannerTypeEyebrowLight` scale */
-  labelFontSizePx?: number
-}
-
-/**
- * Brands strip — “AS SEEN ON…” eyebrow: pixel spacing / nudge / size.
- */
-export const brandMarqueeAsSeenOnConfig: BrandMarqueeAsSeenOnConfig = {
-  label: 'AS SEEN ON...',
-  marginBottomPx: 32,
-  offsetYPx: 0,
-  labelTextClassName: '',
-  labelFontSizePx: 30,
-}
-
 /** Logo rows — edit `src/data/brands.ts`; raster files in `public/images/brands/logos/`. */
 export const brandMarqueeTracksConfig = {
   /** Max height of each logo image (px) */

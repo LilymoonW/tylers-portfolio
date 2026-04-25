@@ -14,6 +14,7 @@ export default function ProjectVideoPlayer({ src, poster, className }: ProjectVi
   const [isPlaying, setIsPlaying] = useState(true)
   const [isMuted, setIsMuted] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false)
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -23,12 +24,50 @@ export default function ProjectVideoPlayer({ src, poster, className }: ProjectVi
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
 
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || shouldLoadVideo) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        setShouldLoadVideo(true)
+        observer.disconnect()
+      },
+      { rootMargin: '220px 0px', threshold: 0.15 },
+    )
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [shouldLoadVideo])
+
+  useEffect(() => {
+    if (!shouldLoadVideo) return
+    const video = videoRef.current
+    if (!video) return
+    const run = async () => {
+      try {
+        await video.play()
+        setIsPlaying(true)
+      } catch {
+        setIsPlaying(false)
+      }
+    }
+    void run()
+  }, [shouldLoadVideo, src])
+
   const togglePlay = async () => {
+    if (!shouldLoadVideo) {
+      setShouldLoadVideo(true)
+      return
+    }
     const video = videoRef.current
     if (!video) return
     if (video.paused) {
-      await video.play()
-      setIsPlaying(true)
+      try {
+        await video.play()
+        setIsPlaying(true)
+      } catch {
+        setIsPlaying(false)
+      }
       return
     }
     video.pause()
@@ -55,16 +94,18 @@ export default function ProjectVideoPlayer({ src, poster, className }: ProjectVi
   return (
     <div ref={containerRef} className={`relative h-full w-full ${className ?? ''}`}>
       <video
+        key={src}
         ref={videoRef}
-        src={src}
         poster={poster}
         autoPlay
         muted
         loop
         playsInline
-        preload="metadata"
+        preload={shouldLoadVideo ? 'metadata' : 'none'}
         className="h-full w-full object-cover"
-      />
+      >
+        {shouldLoadVideo ? <source src={src} type="video/mp4" /> : null}
+      </video>
 
       <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
         <button

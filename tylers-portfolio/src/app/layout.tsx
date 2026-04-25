@@ -2,11 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 import SmoothScrollProvider from "@/components/providers/SmoothScrollProvider";
 import CustomCursor from "@/components/CustomCursor";
-import GrainOverlay from "@/components/GrainOverlay";
 import { fontClassNames } from "@/lib/fonts";
 
 export const metadata: Metadata = {
-  title: "Tyler Yoon | VFX Editor",
+  title: "Tyler Yoon",
   description:
     "Portfolio of Tyler Yoon — VFX editor specializing in visual effects, motion graphics, and creative video editing.",
 };
@@ -24,7 +23,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <SmoothScrollProvider>
           {children}
-          <GrainOverlay />
           <CustomCursor />
         </SmoothScrollProvider>
       </body>

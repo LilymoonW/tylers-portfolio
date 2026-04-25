@@ -1,98 +1,82 @@
 'use client'
 
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useSpring } from 'framer-motion'
 import type { Project } from '@/types'
-import { bannerTypeBase, bannerTypeChip, bannerTypeEyebrowLight } from '@/config/scrollBanner'
+import { bannerTypeBase, bannerTypeChip } from '@/config/scrollBanner'
+import { useLenis } from '@/components/providers/SmoothScrollProvider'
+import { useInViewActive } from '@/hooks/useInViewActive'
 import { cn } from '@/lib/utils'
-
-const LiquidGradientBackground = dynamic(
-  () => import('@/components/LiquidGradientBackground'),
-  { ssr: false },
-)
-
-// 3D wheel is heavy (3D transforms + RAF loop) — lazy-load client-side only.
-const ProjectsWheel3D = dynamic(() => import('@/components/work/ProjectsWheel3D'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[560px] items-center justify-center text-black/40">Loading wheel…</div>
-  ),
-})
+import ProjectsGrid from '@/components/work/ProjectsGrid'
 
 type FilterValue = 'all' | string
 
-function normalize(text: string) {
-  return text.trim().toLowerCase()
-}
-
-// SVG fractal-noise tile used for grain overlays. feTurbulence produces true
-// random noise (no concentric rings like repeating-radial-gradient), and
-// `stitchTiles='stitch'` keeps the pattern seamless when the browser tiles it.
-// The feComponentTransfer stretches contrast so the noise has more deep
-// blacks / bright whites instead of midtone gray — reads as punchier grain.
-const GRAIN_NOISE_URL =
-  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260' viewBox='0 0 260 260'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feComponentTransfer><feFuncR type='linear' slope='2.2' intercept='-0.6'/><feFuncG type='linear' slope='2.2' intercept='-0.6'/><feFuncB type='linear' slope='2.2' intercept='-0.6'/></feComponentTransfer></filter><rect width='260' height='260' filter='url(%23n)'/></svg>\")"
-
-// Single SVG alpha mask for the liquid stack — avoids `mask-composite: intersect`
-// (silhouette + CSS radial), which often rasterizes a hard rectangular seam.
-const PORTFOLIO_LIQUID_MASK = 'url(#portfolio-reveal-mask)'
+// SVG alpha mask for the hero fill behind PORTFOLIO (same defs as the wordmark mask).
+const PORTFOLIO_HERO_FILL_MASK = 'url(#portfolio-reveal-mask)'
 
 export default function WorkPageClient({ projects }: { projects: Project[] }) {
-  const router = useRouter()
-  const [query, setQuery] = useState('')
+  const lenis = useLenis()
+  // Always open the portfolio at the top (hero + filters), not mid-scroll in the
+  // wheel scrub track — avoids browser scroll restoration / bfcache landing in the pin.
+  useLayoutEffect(() => {
+    const goTop = () => {
+      if (lenis) {
+        lenis.scrollTo(0, { immediate: true })
+      } else {
+        window.scrollTo(0, 0)
+      }
+    }
+    goTop()
+    const id = requestAnimationFrame(goTop)
+    return () => cancelAnimationFrame(id)
+  }, [lenis])
   const [brand, setBrand] = useState<FilterValue>('all')
-  const [tag, setTag] = useState<FilterValue>('all')
   const [year, setYear] = useState<FilterValue>('all')
   const [sortOpen, setSortOpen] = useState(false)
 
-  const activeFilterCount =
-    (brand !== 'all' ? 1 : 0) +
-    (tag !== 'all' ? 1 : 0) +
-    (year !== 'all' ? 1 : 0) +
-    (query.trim().length > 0 ? 1 : 0)
+  const activeFilterCount = (brand !== 'all' ? 1 : 0) + (year !== 'all' ? 1 : 0)
 
-  const brands = useMemo(
-    () => Array.from(new Set(projects.map((p) => p.brand))).sort((a, b) => a.localeCompare(b)),
-    [projects],
-  )
-  const tags = useMemo(
-    () => Array.from(new Set(projects.flatMap((p) => p.tags))).sort((a, b) => a.localeCompare(b)),
-    [projects],
-  )
+  const brands = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of projects) {
+      counts.set(p.brand, (counts.get(p.brand) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1]
+        return a[0].localeCompare(b[0])
+      })
+      .map(([name]) => name)
+  }, [projects])
   const years = useMemo(
     () => Array.from(new Set(projects.map((p) => String(p.year)))).sort((a, b) => Number(b) - Number(a)),
     [projects],
   )
 
   const filtered = useMemo(() => {
-    const q = normalize(query)
-
     return [...projects]
       .filter((p) => {
         if (brand !== 'all' && p.brand !== brand) return false
-        if (tag !== 'all' && !p.tags.includes(tag)) return false
         if (year !== 'all' && String(p.year) !== year) return false
-
-        if (!q) return true
-        const haystack = normalize([p.title, p.brand, p.role, p.tags.join(' '), p.toolsUsed.join(' ')].join(' '))
-        return haystack.includes(q)
+        return true
       })
-      .sort((a, b) => b.year - a.year || b.viewCount - a.viewCount)
-  }, [projects, brand, tag, year, query])
+      .sort((a, b) => b.viewCount - a.viewCount || b.year - a.year)
+  }, [projects, brand, year])
 
   const resetFilters = () => {
-    setQuery('')
     setBrand('all')
-    setTag('all')
     setYear('all')
   }
 
   // Text blur uses sprung `tmx/tmy` so the soft pocket trails the cursor.
   // Pointer `tmxRaw/tmyRaw` feed those springs (same box as the <h1> masks).
   const sharpHeadingRef = useRef<HTMLHeadingElement>(null)
+  const portfolioHeroRef = useRef<HTMLDivElement>(null)
+  const heroSpotlightActive = useInViewActive(portfolioHeroRef, {
+    rootMargin: '0px',
+    threshold: 0,
+  })
   const tmxRaw = useMotionValue(50)
   const tmyRaw = useMotionValue(50)
   // Soft trailing springs. Lower stiffness / higher mass = more lag.
@@ -114,11 +98,15 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
     return () => mq.removeEventListener('change', sync)
   }, [])
 
-  // One clamp for every PORTFOLIO layer (SVG mask + h1s + grain) so portrait
+  // One clamp for every PORTFOLIO layer (SVG mask + h1s) so portrait
   // shrink stays aligned and centered in the existing `inline-grid` stack.
+  // Low minimums + vw so “PORTFOLIO” can shrink on very narrow viewports (was 4.2rem
+  // min in landscape, which overflowed and looked off-center).
   const portfolioHeroFontSize = useMemo(
     () =>
-      portraitLayout ? 'clamp(2.4rem, 12vw, 5.4rem)' : 'clamp(4.2rem, 11.5vw, 9.6rem)',
+      portraitLayout
+        ? 'clamp(1.75rem, min(12vw, 12dvh), 5.4rem)'
+        : 'clamp(2rem, 11.5vw, 9.6rem)',
     [portraitLayout],
   )
   const portfolioHeroPadding = useMemo(
@@ -127,18 +115,28 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
   )
   // Italic uppercase glyphs read optically right-heavy; nudge left so the
   // wordmark feels centered to the eye on both desktop and portrait.
+  // Smaller nudge on thin widths would need resize state; very light nudge only.
   const portfolioVisualCenterOffset = useMemo(
-    () => (portraitLayout ? '-0.015em' : '-0.02em'),
+    () => (portraitLayout ? '-0.01em' : '-0.012em'),
     [portraitLayout],
   )
-  // Expand the shared hero box so mask/filter edges sit farther away from text.
+  // Expand the shared hero box so blurred mask “feathers” and the fill gradient
+  // can reach the outer edges without a rectangular clip (larger = softer falloff to white).
   const portfolioHeroBleedPadding = useMemo(
-    () => (portraitLayout ? 'clamp(0.9rem, 4vw, 2.2rem)' : 'clamp(1.4rem, 5vw, 4rem)'),
+    () => (portraitLayout ? 'clamp(1.35rem, 9vw, 5.2rem)' : 'clamp(1.5rem, 11vw, 9.5rem)'),
     [portraitLayout],
   )
 
   useEffect(() => {
-    const setFromClient = (clientX: number, clientY: number) => {
+    if (!heroSpotlightActive) return
+    let raf = 0
+    let pending: { x: number; y: number } | null = null
+
+    const flush = () => {
+      raf = 0
+      if (pending == null) return
+      const { x: clientX, y: clientY } = pending
+      pending = null
       const textEl = sharpHeadingRef.current
       if (!textEl) return
       const r = textEl.getBoundingClientRect()
@@ -147,10 +145,16 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
         tmyRaw.set(((clientY - r.top) / r.height) * 100)
       }
     }
-    const onMouseMove = (event: MouseEvent) => setFromClient(event.clientX, event.clientY)
+
+    const schedule = (clientX: number, clientY: number) => {
+      pending = { x: clientX, y: clientY }
+      if (!raf) raf = requestAnimationFrame(flush)
+    }
+
+    const onMouseMove = (event: MouseEvent) => schedule(event.clientX, event.clientY)
     const onTouch = (event: TouchEvent) => {
       const t = event.touches[0] ?? event.changedTouches[0]
-      if (t) setFromClient(t.clientX, t.clientY)
+      if (t) schedule(t.clientX, t.clientY)
     }
     window.addEventListener('mousemove', onMouseMove, { passive: true })
     window.addEventListener('touchstart', onTouch, { passive: true })
@@ -159,8 +163,15 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('touchstart', onTouch)
       window.removeEventListener('touchmove', onTouch)
+      if (raf) cancelAnimationFrame(raf)
     }
-  }, [tmxRaw, tmyRaw])
+  }, [tmxRaw, tmyRaw, heroSpotlightActive])
+
+  useEffect(() => {
+    if (heroSpotlightActive) return
+    tmxRaw.set(50)
+    tmyRaw.set(50)
+  }, [heroSpotlightActive, tmxRaw, tmyRaw])
 
   // Radial masks for the duplicated PORTFOLIO text. Softer outer stops so the
   // pocket does not cut off with a visible rectangular alpha cliff.
@@ -171,15 +182,25 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
 
   return (
     <main className="relative min-h-screen overflow-visible bg-white text-black">
-      <section className="mx-auto w-full max-w-[1400px] overflow-visible px-6 pt-10 md:pt-14">
+      <section className="mx-auto w-full max-w-[1400px] overflow-visible px-3 min-[420px]:px-5 sm:px-6 pt-10 md:pt-14">
         <div className="flex items-center justify-between">
-          <p className={cn(bannerTypeEyebrowLight, 'uppercase text-black/60')}>PORTFOLIO</p>
+          <Link
+            href="/contact"
+            className={cn(
+              bannerTypeChip,
+              'uppercase text-black/70 transition hover:text-black hover:underline underline-offset-4 decoration-1',
+            )}
+            data-cursor="expand"
+          >
+            CONTACT
+          </Link>
           <Link
             href="/"
             className={cn(
               bannerTypeChip,
               'uppercase text-black/70 transition hover:text-black hover:underline underline-offset-4 decoration-1',
             )}
+            data-cursor="expand"
           >
             HOME
           </Link>
@@ -191,12 +212,10 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
               spotlight `%` shares the heading's coordinate system (the old
               full-bleed layer used different springs and often missed the
               letterform mask entirely). */}
-          <div className="relative z-[1] flex w-full min-w-0 justify-center overflow-visible py-14 md:py-20">
-            {/* No `isolate`: `mix-blend-mode` on the grain layer should blend
-                against the real page backdrop; isolation caused muddy fringe
-                colors in stacked portrait layouts. */}
+          <div className="relative z-[1] flex w-full min-w-0 justify-center overflow-visible py-16 md:py-24">
             <div
-              className="relative mx-auto inline-grid min-w-0 place-items-center overflow-visible"
+              ref={portfolioHeroRef}
+              className="relative mx-auto inline-grid w-full min-w-0 max-w-full place-items-center justify-items-center overflow-visible"
               style={{
                 padding: portfolioHeroBleedPadding,
                 transform: `translateX(${portfolioVisualCenterOffset})`,
@@ -214,29 +233,29 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
                       hard rectangular edge behind the wordmark. */}
                   <filter
                     id="portfolio-mask-blur"
-                    x="-120%"
-                    y="-120%"
-                    width="340%"
-                    height="340%"
+                    x="-160%"
+                    y="-160%"
+                    width="420%"
+                    height="420%"
                   >
                     <feGaussianBlur stdDeviation="28" />
                   </filter>
                   <filter
                     id="portfolio-mask-blur-portrait"
-                    x="-120%"
-                    y="-120%"
-                    width="340%"
-                    height="340%"
+                    x="-160%"
+                    y="-160%"
+                    width="420%"
+                    height="420%"
                   >
                     <feGaussianBlur stdDeviation="17" />
                   </filter>
                   <mask
                     id="portfolio-reveal-mask"
                     maskUnits="userSpaceOnUse"
-                    x="-70%"
-                    y="-70%"
-                    width="240%"
-                    height="240%"
+                    x="-100%"
+                    y="-100%"
+                    width="300%"
+                    height="300%"
                     overflow="visible"
                     style={{ maskType: 'alpha' }}
                   >
@@ -270,45 +289,25 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
               <motion.div
                 className="pointer-events-none absolute inset-0 z-0 overflow-visible"
                 style={{
-                  maskImage: PORTFOLIO_LIQUID_MASK,
-                  WebkitMaskImage: PORTFOLIO_LIQUID_MASK,
+                  maskImage: PORTFOLIO_HERO_FILL_MASK,
+                  WebkitMaskImage: PORTFOLIO_HERO_FILL_MASK,
                   maskRepeat: 'no-repeat',
                   WebkitMaskRepeat: 'no-repeat',
                   maskMode: 'alpha',
                 }}
               >
-                <LiquidGradientBackground
-                  fillContainer
-                  color1="#4ABDD4"
-                  color2="#6BCFE2"
-                  color3="#8DDFEE"
-                  color4="#B8EEF6"
-                  color5="#E8FAFD"
-                  color6="#5EC9DC"
-                  backgroundColor="#9EE4F0"
-                  animationSpeed={1.3}
-                  gradientIntensity={2.55}
-                  gradientSize={0.88}
-                  gradientCount={16}
-                  touchStrength={0.28}
-                  grainIntensity={0.025}
-                  color1Weight={0.85}
-                  color2Weight={2.0}
-                />
+                {/* Static light fill (liquid WebGL removed). */}
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 mix-blend-soft-light"
+                  className="pointer-events-none absolute inset-0"
                   style={{
-                    opacity: 0.28,
-                    backgroundImage: GRAIN_NOISE_URL,
-                    backgroundRepeat: 'repeat',
-                    backgroundSize: '240px 240px',
+                    background:
+                      'radial-gradient(ellipse 100% 90% at 50% 42%, rgb(245 252 255) 0%, rgb(232 248 255) 35%, rgb(214 238 252) 68%, rgb(196 228 248) 100%)',
                   }}
                 />
               </motion.div>
 
-              {/* Royal blue blur under the black blur so black always paints on
-                  top in the cursor pocket; sharp headline stays above both. */}
+              {/* Royal blue glow — two stacked copies + heavy blur so the halo reads clearly under the black blur. */}
               <motion.h1
                 aria-hidden
                 className="relative z-[0] block overflow-visible text-center font-display font-bold italic uppercase tracking-[-0.03em] leading-[0.9] text-[#4169E1]"
@@ -317,6 +316,21 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
                   fontSize: portfolioHeroFontSize,
                   padding: portfolioHeroPadding,
                   filter: portraitLayout ? 'blur(5px)' : 'blur(8px)',
+                  maskImage: portraitLayout ? textBlurRevealMaskPortrait : textBlurRevealMask,
+                  WebkitMaskImage: portraitLayout ? textBlurRevealMaskPortrait : textBlurRevealMask,
+                  maskMode: 'alpha',
+                }}
+              >
+                PORTFOLIO
+              </motion.h1>
+              <motion.h1
+                aria-hidden
+                className="relative z-[0] block overflow-visible text-center font-display font-bold italic uppercase tracking-[-0.03em] leading-[0.9] text-[#4169E1]"
+                style={{
+                  gridArea: '1 / 1',
+                  fontSize: portfolioHeroFontSize,
+                  padding: portfolioHeroPadding,
+                  filter: portraitLayout ? 'blur(6px)' : 'blur(10px)',
                   maskImage: portraitLayout ? textBlurRevealMaskPortrait : textBlurRevealMask,
                   WebkitMaskImage: portraitLayout ? textBlurRevealMaskPortrait : textBlurRevealMask,
                   maskMode: 'alpha',
@@ -353,33 +367,6 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
               >
                 PORTFOLIO
               </motion.h1>
-
-              {/* Grain painted only inside the PORTFOLIO letterforms via
-                  background-clip: text, and only inside the cursor spotlight via
-                  the same reveal mask used by the blurred copy. Sits above the
-                  blurred <h1> so the grain reads crisply against the soft blur. */}
-              <motion.div
-                aria-hidden
-                className="relative z-[2] block overflow-visible select-none text-center font-display font-bold italic uppercase tracking-[-0.03em] leading-[0.9]"
-                style={{
-                  gridArea: '1 / 1',
-                  fontSize: portfolioHeroFontSize,
-                  padding: portfolioHeroPadding,
-                  color: 'transparent',
-                  backgroundImage: GRAIN_NOISE_URL,
-                  backgroundRepeat: 'repeat',
-                  backgroundSize: '180px 180px',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  mixBlendMode: 'overlay',
-                  opacity: 1,
-                  maskImage: portraitLayout ? textBlurRevealMaskPortrait : textBlurRevealMask,
-                  WebkitMaskImage: portraitLayout ? textBlurRevealMaskPortrait : textBlurRevealMask,
-                  maskMode: 'alpha',
-                }}
-              >
-                PORTFOLIO
-              </motion.div>
             </div>
           </div>
         </div>
@@ -387,8 +374,7 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
       </section>
 
       <section className="mx-auto w-full max-w-[1400px] px-6 pb-20">
-        {/* "SORT" trigger — gates the whole search + reset + filters panel.
-            Clicking the word expands the full controls below it. */}
+        {/* "SORT" trigger — gates brand/year filters + reset. */}
         <div className="mb-6 flex justify-center">
           <button
             type="button"
@@ -445,36 +431,21 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
               className="mb-8 overflow-hidden"
             >
               <div className="rounded-2xl border border-black/10 bg-black/[0.02]">
-                <div className="flex flex-wrap items-center gap-3 p-4 md:p-5">
-                  <label htmlFor="work-search" className={cn(bannerTypeChip, 'text-black/60')}>
-                    Search
-                  </label>
-                  <input
-                    id="work-search"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Title, brand, role, tags..."
-                    className={cn(
-                      bannerTypeBase,
-                      'h-10 w-full max-w-md rounded-full border border-black/20 bg-white px-4 text-sm normal-case text-black placeholder:text-black/35 focus:border-black/50 focus:outline-none',
-                    )}
-                  />
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className={cn(
-                      bannerTypeChip,
-                      'rounded-full border border-black/20 bg-black/[0.03] px-3 py-2 text-black/70 transition hover:bg-black/10 hover:text-black',
-                    )}
-                  >
-                    Reset
-                  </button>
-                </div>
-
-                <div className="space-y-3 border-t border-black/10 px-4 py-4 md:px-5 md:py-5">
+                <div className="space-y-3 px-4 py-4 md:px-5 md:py-5">
                   <FilterRow label="Brand" values={brands} selected={brand} onChange={setBrand} />
-                  <FilterRow label="Tag" values={tags} selected={tag} onChange={setTag} />
                   <FilterRow label="Year" values={years} selected={year} onChange={setYear} />
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className={cn(
+                        bannerTypeChip,
+                        'rounded-full border border-black/20 bg-black/[0.03] px-3 py-2 text-black/70 transition hover:bg-black/10 hover:text-black',
+                      )}
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -488,24 +459,20 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
             </p>
           </div>
         ) : (
-          <ProjectsWheel3D
-            projects={filtered}
-            onSelect={(project) =>
-              router.push(`/work/${encodeURIComponent(project.id)}`, { scroll: true })
-            }
-          />
+          <ProjectsGrid projects={filtered} />
         )}
+        <p className={cn(bannerTypeBase, 'mt-8 text-center text-black/55')}>ADDING MORE WORK SOON...</p>
       </section>
 
-      {/* Sits after the wheel scrub track, so it only appears once users scroll
-          past the pinned carousel sequence. */}
-      <section className="mx-auto flex min-h-[62vh] w-full max-w-[1400px] items-end justify-center px-6 pb-14 md:min-h-[72vh] md:pb-20">
-        <p
-          className="text-center font-display font-bold italic uppercase leading-none tracking-[-0.03em] text-black"
-          style={{ fontSize: 'clamp(1.1rem, 3.2vw, 2.2rem)' }}
+      <section className="mx-auto flex w-full max-w-[1400px] items-end justify-center px-6 pb-14 pt-20 md:pb-20 md:pt-28">
+        <Link
+          href="/contact"
+          className="text-center font-display font-bold italic uppercase leading-none tracking-[-0.03em] text-black transition hover:underline underline-offset-4 decoration-1"
+          style={{ fontSize: 'clamp(0.69rem, 2vw, 1.38rem)' }}
+          data-cursor="expand"
         >
           CONTACT
-        </p>
+        </Link>
       </section>
     </main>
   )

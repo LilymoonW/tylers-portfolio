@@ -21,8 +21,6 @@
 
 :root {
   --base-font-size: 16px;
-  /* Sitewide SVG grain (`GrainOverlay`) — nudge up/down for more / less tooth */
-  --grain-opacity: 0.2;
   color-scheme: light;
 }
 
@@ -48,7 +46,7 @@ body * {
   text-transform: none;
 }
 
-/* Force uppercase only on `/work/[projectId]` template content. */
+/* Force uppercase only on `/portfolio/[projectId]` template content. */
 .project-page-uppercase,
 .project-page-uppercase * {
   text-transform: uppercase !important;
@@ -74,25 +72,7 @@ body * {
   display: none;
 }
 
-/* `GrainOverlay` mounts `.grain` (SVG) — procedural noise, see component */
-
-/* Procedural film grain on large gradients (paper bridge, brands bridge — `page.tsx`, `BrandsGradientBridge.tsx`) */
-.gradient-film-grain {
-  pointer-events: none;
-  opacity: 0.22;
-  mix-blend-mode: overlay;
-  background-image:
-    repeating-radial-gradient(circle at 12% 18%, rgb(255 255 255 / 0.07) 0 0.4px, transparent 0.5px 14px),
-    repeating-radial-gradient(circle at 78% 64%, rgb(0 0 0 / 0.09) 0 0.35px, transparent 0.45px 11px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gradient-film-grain {
-    opacity: 0.08;
-  }
-}
-
-/* Contact signature: ink reads into the warm paper field (intro seam SVG is portaled, no multiply). */
+/* Contact signature: ink reads into the warm paper field (intro seam SVG is in-flow; contact uses multiply). */
 .signature-marker-on-paper {
   mix-blend-mode: multiply;
 }
@@ -126,10 +106,6 @@ body * {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-
-  .grain {
-    display: none;
-  }
 }
 
 /* Scroll lock utility */
@@ -150,22 +126,6 @@ body * {
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
-}
-
-/* Grainy/distressed text effect */
-.text-grainy {
-  position: relative;
-}
-.text-grainy::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  mix-blend-mode: multiply;
-  opacity: 0.35;
-  pointer-events: none;
-  background-image:
-    repeating-radial-gradient(circle at 12% 18%, rgb(0 0 0 / 0.045) 0 0.4px, transparent 0.5px 14px),
-    repeating-radial-gradient(circle at 78% 64%, rgb(0 0 0 / 0.035) 0 0.35px, transparent 0.45px 11px);
 }
 
 /* BrandMarquee — `--brand-marquee-duration` + `--brand-marquee-logo-gap` on `#brands` */
@@ -223,4 +183,5 @@ body * {
   animation: featured-work-marquee var(--featured-duration, 45s) linear infinite;
   animation-play-state: var(--featured-play-state, running);
   backface-visibility: hidden;
+  will-change: transform;
 }

@@ -1,50 +1,24 @@
 'use client'
 
-import { bannerTypeBase } from '@/config/scrollBanner'
-import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { motion, useMotionValue } from 'framer-motion'
 
+/**
+ * `data-cursor="system"` — use the OS cursor and hide the custom ring (e.g. over cross-origin
+ * iframes, where the prior mouseenter/leave + ring fights the embed’s own pointer).
+ * Resolved via `elementFromPoint` on `mousemove` so the iframe node is hit correctly.
+ */
 export default function CustomCursor() {
   const [isVisible, setIsVisible] = useState(false)
-  const [cursorVariant, setCursorVariant] = useState<'default' | 'expand' | 'play'>('default')
+  const [showRing, setShowRing] = useState(true)
+  const [cursorVariant, setCursorVariant] = useState<'default' | 'expand'>('default')
+  const lastSystemRef = useRef<boolean | null>(null)
+  const lastExpandRef = useRef<boolean | null>(null)
   const cursorX = useMotionValue(0)
   const cursorY = useMotionValue(0)
 
-  const springConfig = { damping: 25, stiffness: 200, mass: 0.5 }
-  const ringX = useSpring(cursorX, springConfig)
-  const ringY = useSpring(cursorY, springConfig)
-
   const ringSize = cursorVariant === 'default' ? 20 : 30
   const holeSize = ringSize * 0.5
-  const maxHoleOffset = ringSize * 0.16
-
-  // Inner hole leads a bit based on cursor-vs-ring delta, but remains clamped.
-  const holeOffsetX = useTransform([cursorX, ringX, cursorY, ringY], (values) => {
-    const [cx, rx, cy, ry] = values as [number, number, number, number]
-    let dx = (cx - rx) * 0.35
-    let dy = (cy - ry) * 0.35
-    const magnitude = Math.hypot(dx, dy)
-    if (magnitude > maxHoleOffset && magnitude > 0) {
-      const scale = maxHoleOffset / magnitude
-      dx *= scale
-      dy *= scale
-    }
-    return dx
-  })
-
-  const holeOffsetY = useTransform([cursorX, ringX, cursorY, ringY], (values) => {
-    const [cx, rx, cy, ry] = values as [number, number, number, number]
-    let dx = (cx - rx) * 0.35
-    let dy = (cy - ry) * 0.35
-    const magnitude = Math.hypot(dx, dy)
-    if (magnitude > maxHoleOffset && magnitude > 0) {
-      const scale = maxHoleOffset / magnitude
-      dx *= scale
-      dy *= scale
-    }
-    return dy
-  })
 
   useEffect(() => {
     // Hide on touch devices
@@ -53,38 +27,76 @@ export default function CustomCursor() {
     const showId = window.requestAnimationFrame(() => setIsVisible(true))
     document.documentElement.style.cursor = 'none'
 
-    const onMouseMove = (e: MouseEvent) => {
-      cursorX.set(e.clientX)
-      cursorY.set(e.clientY)
-    }
+    /** `elementFromPoint` + DOM walks are costly; one hit-test per frame is enough for cursor mode. */
+    let hitRaf = 0
+    let hitScheduled = false
+    let pendingX = 0
+    let pendingY = 0
 
-    const onMouseEnter = (e: Event) => {
-      const { target } = e
-      if (!(target instanceof Element)) return
-      const variant = target.closest('[data-cursor]')?.getAttribute('data-cursor')
-      if (variant === 'expand' || variant === 'play') {
-        setCursorVariant(variant)
+    const flushHitTest = () => {
+      hitScheduled = false
+      hitRaf = 0
+      const x = pendingX
+      const y = pendingY
+
+      const el = document.elementFromPoint(x, y)
+      if (!el) {
+        if (lastSystemRef.current !== false) {
+          lastSystemRef.current = false
+          setShowRing(true)
+        }
+        if (lastExpandRef.current !== false) {
+          lastExpandRef.current = false
+          setCursorVariant('default')
+        }
+        document.documentElement.style.cursor = 'none'
+        return
+      }
+
+      const hit = el.closest('[data-cursor]')
+      const attr = hit?.getAttribute('data-cursor') ?? null
+      const useSystem = attr === 'system'
+      const expand =
+        !useSystem && (attr === 'expand' || attr === 'play')
+
+      document.documentElement.style.cursor = useSystem ? 'auto' : 'none'
+
+      if (lastSystemRef.current !== useSystem) {
+        lastSystemRef.current = useSystem
+        setShowRing(!useSystem)
+      }
+      if (lastExpandRef.current !== expand) {
+        lastExpandRef.current = expand
+        setCursorVariant(expand ? 'expand' : 'default')
       }
     }
 
-    const onMouseLeave = () => {
-      setCursorVariant('default')
+    const onMouseMove = (e: MouseEvent) => {
+      cursorX.set(e.clientX)
+      cursorY.set(e.clientY)
+      pendingX = e.clientX
+      pendingY = e.clientY
+      if (!hitScheduled) {
+        hitScheduled = true
+        hitRaf = window.requestAnimationFrame(flushHitTest)
+      }
     }
 
     document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseenter', onMouseEnter, true)
-    document.addEventListener('mouseleave', onMouseLeave, true)
 
     return () => {
       window.cancelAnimationFrame(showId)
+      if (hitRaf) window.cancelAnimationFrame(hitRaf)
       document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseenter', onMouseEnter, true)
-      document.removeEventListener('mouseleave', onMouseLeave, true)
+      lastSystemRef.current = null
+      lastExpandRef.current = null
       document.documentElement.style.cursor = ''
     }
   }, [cursorX, cursorY])
 
   if (!isVisible) return null
+
+  if (!showRing) return null
 
   return (
     <>
@@ -92,8 +104,8 @@ export default function CustomCursor() {
       <motion.div
         className="fixed top-0 left-0 z-[10000] pointer-events-none rounded-full overflow-hidden mix-blend-difference flex items-center justify-center"
         style={{
-          x: ringX,
-          y: ringY,
+          x: cursorX,
+          y: cursorY,
           translateX: '-50%',
           translateY: '-50%',
           background: 'rgba(255,255,255,1)',
@@ -102,26 +114,19 @@ export default function CustomCursor() {
           width: ringSize,
           height: ringSize,
         }}
-        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        transition={{ type: 'tween', duration: 0.12, ease: 'easeOut' }}
       >
         <motion.div
           className="absolute rounded-full bg-black/95"
           style={{
             width: holeSize,
             height: holeSize,
-            x: holeOffsetX,
-            y: holeOffsetY,
             translateX: '-50%',
             translateY: '-50%',
             left: '50%',
             top: '50%',
           }}
         />
-        {cursorVariant === 'play' && (
-          <span className={cn(bannerTypeBase, 'relative z-10 text-[10px] leading-none text-white')}>
-            Play
-          </span>
-        )}
       </motion.div>
     </>
   )

@@ -1,5 +1,5 @@
 export interface Project {
-  /** Matches `title`; used for `#work/` deep links (encoded in the URL hash). */
+  /** Matches `title`; used for `#portfolio/` deep links (encoded in the URL hash). */
   id: string
   title: string
   duration: string
@@ -8,13 +8,28 @@ export interface Project {
   thumbnail: string
   /** Optional zoom on raster thumbnail (e.g. 1.08); parent should clip with `overflow-hidden`. */
   thumbnailZoom?: number
+  /**
+   * CSS `object-position` applied to the thumbnail `<Image>` (e.g. `'center top'`, `'50% 30%'`).
+   * Lets each project independently tune how a 9:16 source is cropped inside a non-matching
+   * container (e.g. the square grid tiles on `/portfolio`). Default: `'center'`.
+   */
+  thumbnailObjectPosition?: string
   embedUrl: string
-  /** Optional hosted video path for the dedicated `/work/[projectId]` page media block. */
+  /**
+   * When set, the `/portfolio/[projectId]` media link shows an external-open affordance instead of
+   * a play triangle (e.g. Instagram-only posts).
+   */
+  mediaExternalAffordance?: boolean
+  /** Optional hosted video path for the dedicated `/portfolio/[projectId]` page media block. */
   videoSrc?: string
-  /** Optional per-project bio shown on the dedicated `/work/[projectId]` page. */
+  /** Optional per-project bio shown on the dedicated `/portfolio/[projectId]` page. */
   bio?: string
+  /** Credited videographers on `/portfolio/[projectId]` — each project supplies its own list (omit or `[]` to hide the block). */
+  videographers?: string[]
   tags: string[]
   viewCount: number
+  /** When true, `/portfolio/[projectId]` hides the Views row in Project Info. */
+  hideProjectViews?: boolean
   toolsUsed: string[]
   brand: string
   featured: boolean
@@ -30,6 +45,8 @@ export interface Brand {
   url?: string
   /** Multiplier for marquee slot height + image max height (default 1). Slot width stays the global logo column width. */
   logoScale?: number
+  /** CSS `brightness()` multiplier on the raster (1 = default; 0.8 ≈ 20% darker). */
+  logoBrightness?: number
 }
 
 export interface Tool {

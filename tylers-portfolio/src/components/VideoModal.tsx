@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useVideoModal } from './VideoModalProvider'
 import { tools as allTools } from '@/data/tools'
 import { formatNumber, cn } from '@/lib/utils'
+import { getSocialEmbedSrc } from '@/lib/socialEmbed'
 import {
   bannerTypeBase,
   bannerTypeChip,
@@ -13,8 +14,14 @@ import {
   bannerTypeModalTitle,
 } from '@/config/scrollBanner'
 
+const IFRAME_ALLOW =
+  'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen'
+
 export default function VideoModal() {
   const { activeProject, closeModal } = useVideoModal()
+  const socialEmbed =
+    activeProject?.embedUrl ? getSocialEmbedSrc(activeProject.embedUrl) : null
+  const modalEmbedSrc = socialEmbed?.src ?? activeProject?.embedUrl ?? ''
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -62,13 +69,20 @@ export default function VideoModal() {
               </svg>
             </button>
 
-            {/* Video embed - vertical 9:16 */}
-            <div className="relative w-full" style={{ aspectRatio: '9/16' }}>
+            {/* Video embed - vertical 9:16; system cursor over iframe (see CustomCursor) */}
+            <div
+              className="relative w-full"
+              data-cursor="system"
+              style={{ aspectRatio: '9/16' }}
+            >
               <iframe
-                src={activeProject.embedUrl}
-                className="absolute inset-0 w-full h-full"
-                allow="autoplay; fullscreen; picture-in-picture"
+                title={activeProject.title}
+                src={modalEmbedSrc}
+                className="absolute inset-0 h-full w-full border-0"
+                allow={IFRAME_ALLOW}
                 allowFullScreen
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
               />
             </div>
 

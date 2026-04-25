@@ -19,12 +19,19 @@ export function useVideoModal() {
   return useContext(VideoModalContext)
 }
 
-function decodeWorkHashId(fragment: string) {
+function decodePortfolioHashId(fragment: string) {
   try {
     return decodeURIComponent(fragment)
   } catch {
     return fragment
   }
+}
+
+/** `#portfolio/id` (current) or legacy `#work/id` from older shares. */
+function projectIdFromLocationHash(hash: string): string | null {
+  if (hash.startsWith('#portfolio/')) return hash.slice('#portfolio/'.length)
+  if (hash.startsWith('#work/')) return hash.slice('#work/'.length)
+  return null
 }
 
 export default function VideoModalProvider({ children, projects }: { children: ReactNode; projects: Project[] }) {
@@ -38,7 +45,7 @@ export default function VideoModalProvider({ children, projects }: { children: R
     }
     setActiveProject(project)
     document.body.classList.add('scroll-locked')
-    window.history.pushState(null, '', `#work/${encodeURIComponent(project.id)}`)
+    window.history.pushState(null, '', `#portfolio/${encodeURIComponent(project.id)}`)
   }, [])
 
   const closeModal = useCallback(() => {
@@ -51,9 +58,9 @@ export default function VideoModalProvider({ children, projects }: { children: R
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash
-      if (hash.startsWith('#work/')) {
-        const raw = hash.slice('#work/'.length)
-        const id = decodeWorkHashId(raw)
+      const raw = projectIdFromLocationHash(hash)
+      if (raw != null) {
+        const id = decodePortfolioHashId(raw)
         const project =
           projects.find((p) => p.id === id) ?? projects.find((p) => p.id === raw)
         if (project) {

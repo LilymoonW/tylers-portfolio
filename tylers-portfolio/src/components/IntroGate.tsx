@@ -17,7 +17,7 @@ import {
 } from '@/config/introMotion'
 import { bannerTypeBase } from '@/config/scrollBanner'
 import { useIntroScroll } from '@/components/providers/IntroScrollProvider'
-import { useLenis } from '@/components/providers/SmoothScrollProvider'
+import { useIntroHeroMobileLayout } from '@/hooks/useCoarsePointer'
 import { useInViewActive } from '@/hooks/useInViewActive'
 import { cn } from '@/lib/utils'
 
@@ -36,12 +36,17 @@ function captionSliceForProgress(
 }
 
 export default function IntroGate() {
-  const lenis = useLenis()
   const { introSectionRef, scrollYProgress } = useIntroScroll()
   const stickyRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const isActive = useInViewActive(introSectionRef, { rootMargin: '0px', threshold: 0 })
-  const scale = useTransform(scrollYProgress, introVideoScaleForProgress)
+  /** Must be true on first paint on phones — delayed “after mount” left video inside `scale()` and broke WebKit autoplay. */
+  const heroMobileLayout = useIntroHeroMobileLayout()
+  /** Desktop only — on phones (Safari + Chrome), keep video out of a transformed ancestor (muted autoplay). */
+  const heroScale = useTransform(scrollYProgress, introVideoScaleForProgress)
+  const layoutScale = useTransform(scrollYProgress, (p) =>
+    heroMobileLayout ? 1 : introVideoScaleForProgress(p),
+  )
 
   const vw = useMotionValue(0)
   useLayoutEffect(() => {
@@ -51,7 +56,7 @@ export default function IntroGate() {
     return () => window.removeEventListener('resize', set)
   }, [vw])
 
-  const sideInsetPx = useTransform([scale, vw], ([s, w]) => {
+  const sideInsetPx = useTransform([layoutScale, vw], ([s, w]) => {
     const sc = typeof s === 'number' ? s : 1
     const width = typeof w === 'number' ? w : 0
     return Math.max(0, ((1 - sc) / 2) * width)
@@ -70,10 +75,10 @@ export default function IntroGate() {
   const [contactText, setContactText] = useState('')
   const syncSideCaptions = useCallback(
     (p: number) => {
-      setAllWorkText(captionSliceForProgress(p, reduceMotion, introAllWorkLabel))
-      setContactText(
-        captionSliceForProgress(p, reduceMotion, introContactLabel),
-      )
+      const nextAll = captionSliceForProgress(p, reduceMotion, introAllWorkLabel)
+      const nextContact = captionSliceForProgress(p, reduceMotion, introContactLabel)
+      setAllWorkText((prev) => (prev === nextAll ? prev : nextAll))
+      setContactText((prev) => (prev === nextContact ? prev : nextContact))
     },
     [reduceMotion],
   )
@@ -92,96 +97,183 @@ export default function IntroGate() {
     if (!sticky || !video || !(video instanceof HTMLElement)) return
     const stickyRect = sticky.getBoundingClientRect()
     const videoRect = video.getBoundingClientRect()
-    setSideCaptionsTopPx(
+    const next = Math.round(
       videoRect.bottom - stickyRect.top + introSideCaptionBelowVideoGapPx,
+    )
+    setSideCaptionsTopPx((prev) =>
+      prev != null && Math.abs(prev - next) < 1 ? prev : next,
     )
   }, [])
 
   useLayoutEffect(() => {
-    const rafMeasure = () => requestAnimationFrame(measureSideCaptionsTop)
-    rafMeasure()
-    window.addEventListener('resize', rafMeasure)
-    window.addEventListener('scroll', rafMeasure, { passive: true })
-    const onLenisScroll = () => rafMeasure()
-    lenis?.on('scroll', onLenisScroll)
+    if (heroMobileLayout) return
+    measureSideCaptionsTop()
+    window.addEventListener('resize', measureSideCaptionsTop)
     return () => {
-      window.removeEventListener('resize', rafMeasure)
-      window.removeEventListener('scroll', rafMeasure)
-      lenis?.off('scroll', onLenisScroll)
+      window.removeEventListener('resize', measureSideCaptionsTop)
     }
-  }, [lenis, measureSideCaptionsTop])
+  }, [heroMobileLayout, measureSideCaptionsTop])
 
   useMotionValueEvent(scrollYProgress, 'change', (p) => {
     syncSideCaptions(p)
-    requestAnimationFrame(measureSideCaptionsTop)
+    if (!heroMobileLayout) measureSideCaptionsTop()
   })
+
+  useLayoutEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    v.muted = true
+    v.defaultMuted = true
+    v.playsInline = true
+    v.setAttribute('playsinline', '')
+    v.setAttribute('webkit-playsinline', 'true')
+    v.setAttribute('muted', '')
+  }, [heroMobileLayout])
 
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
-    if (isActive) {
-      void v.play().catch(() => {
-        // Ignore autoplay race errors; browser policies may delay play.
-      })
+
+    if (!isActive) {
+      v.pause()
       return
     }
-    v.pause()
-  }, [isActive])
+
+    const tryPlay = () => {
+      v.muted = true
+      void v.play().catch(() => {})
+    }
+
+    v.muted = true
+
+    const onReady = () => tryPlay()
+    if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      tryPlay()
+    } else {
+      v.addEventListener('loadeddata', onReady, { once: true })
+      v.addEventListener('canplay', onReady, { once: true })
+      return () => {
+        v.removeEventListener('loadeddata', onReady)
+        v.removeEventListener('canplay', onReady)
+      }
+    }
+  }, [isActive, heroMobileLayout])
+
+  const introVideoSrc =
+    '/video/yoon-front-vid.mp4' + (heroMobileLayout ? '#t=0.001' : '')
+
+  const introVideoLayerClass =
+    'relative z-10 h-full w-full max-w-none overflow-hidden rounded-none bg-black shadow-none'
+  const introVideoEl = (
+    <video
+      ref={videoRef}
+      src={introVideoSrc}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload={heroMobileLayout ? 'auto' : 'metadata'}
+      controls={false}
+      className="absolute inset-0 h-full w-full object-cover"
+    />
+  )
+  const introVideoLayer = heroMobileLayout ? (
+    <div data-intro-video-layer className={introVideoLayerClass}>
+      {introVideoEl}
+    </div>
+  ) : (
+    <motion.div data-intro-video-layer className={introVideoLayerClass} style={{ scale: heroScale }}>
+      {introVideoEl}
+    </motion.div>
+  )
+
+  const captionLinks = (
+    <>
+      <Link
+        href="/portfolio"
+        className={cn(
+          bannerTypeBase,
+          'pointer-events-auto min-w-0 shrink text-left leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl',
+          'hover:underline underline-offset-4 decoration-1',
+        )}
+        data-cursor="expand"
+        aria-label="Go to portfolio page"
+      >
+        <span aria-live="polite">{allWorkText}</span>
+      </Link>
+      <Link
+        href="/contact"
+        className={cn(
+          bannerTypeBase,
+          'pointer-events-auto min-w-0 shrink text-left leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl landscape:text-right',
+          'hover:underline underline-offset-4 decoration-1',
+        )}
+        data-cursor="expand"
+        aria-label="Go to contact page"
+      >
+        <span aria-live="polite">{contactText}</span>
+      </Link>
+    </>
+  )
 
   return (
-    <section ref={introSectionRef} className="relative z-20 h-[200vh]">
+    <section
+      ref={introSectionRef}
+      className="relative z-20 h-[200vh]"
+      suppressHydrationWarning
+    >
       <div
         ref={stickyRef}
         data-intro-sticky
-        className="sticky top-0 h-[100dvh] min-h-0 w-full overflow-hidden"
+        className={cn(
+          'sticky top-0 min-h-0 w-full overflow-hidden',
+          heroMobileLayout
+            ? 'flex h-[100dvh] flex-col'
+            : 'h-[100dvh]',
+        )}
       >
-        {/* Full-viewport bleed; full width on wide / horizontal screens (no max-width cap) */}
-        <motion.div
-          data-intro-video-layer
-          className="relative z-10 h-full w-full max-w-none overflow-hidden rounded-none bg-black shadow-none"
-          style={{ scale }}
-        >
-          <video
-            ref={videoRef}
-            src="/video/yoon-front-vid.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        </motion.div>
-
-        <motion.div
-          className="pointer-events-none absolute inset-x-0 z-20 flex flex-row items-start justify-between gap-4"
-          style={{
-            top: sideCaptionsTopPx ?? undefined,
-            bottom: sideCaptionsTopPx == null ? '2rem' : 'auto',
-            paddingLeft: sideInsetPx,
-            paddingRight: sideInsetPx,
-          }}
-        >
-          <Link
-            href="/work"
-            className={cn(
-              bannerTypeBase,
-              'pointer-events-auto min-w-0 shrink text-left leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl hover:underline underline-offset-4',
-            )}
-            data-cursor="expand"
-            aria-label="Go to all work page"
-          >
-            <span aria-live="polite">{allWorkText}</span>
-          </Link>
-          <p
-            className={cn(
-              bannerTypeBase,
-              'min-w-0 shrink text-right leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl',
-            )}
-            aria-live="polite"
-          >
-            {contactText}
-          </p>
-        </motion.div>
+        {heroMobileLayout ? (
+          <>
+            <div className="relative z-10 min-h-0 w-full min-w-0 flex-1 basis-0">
+              <div className="absolute inset-0 z-10 min-h-0">{introVideoLayer}</div>
+            </div>
+            <div
+              className={cn(
+                'relative z-20 flex shrink-0 flex-col items-start gap-1 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-2',
+                'pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))]',
+                'landscape:flex-row landscape:justify-between landscape:gap-4',
+              )}
+            >
+              {captionLinks}
+            </div>
+          </>
+        ) : (
+          <>
+            {introVideoLayer}
+            <motion.div
+              className={cn(
+                'pointer-events-none absolute inset-x-0 z-20 flex flex-col items-start gap-0 will-change-transform',
+                'landscape:flex-row landscape:justify-between landscape:gap-4',
+              )}
+              style={
+                sideCaptionsTopPx == null
+                  ? {
+                      bottom: '2rem',
+                      paddingLeft: sideInsetPx,
+                      paddingRight: sideInsetPx,
+                    }
+                  : {
+                      top: 0,
+                      y: sideCaptionsTopPx,
+                      paddingLeft: sideInsetPx,
+                      paddingRight: sideInsetPx,
+                    }
+              }
+            >
+              {captionLinks}
+            </motion.div>
+          </>
+        )}
       </div>
     </section>
   )

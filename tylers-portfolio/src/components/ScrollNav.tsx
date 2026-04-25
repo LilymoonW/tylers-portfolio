@@ -12,11 +12,13 @@ import { scrollBannerConfig } from '@/config/scrollBanner'
 import { cn } from '@/lib/utils'
 import { useLenis } from '@/components/providers/SmoothScrollProvider'
 import { useIntroScroll } from '@/components/providers/IntroScrollProvider'
+import { useIntroHeroMobileLayout } from '@/hooks/useCoarsePointer'
 
 export default function ScrollNav() {
   const lenis = useLenis()
   const { scrollYProgress } = useIntroScroll()
   const cfg = scrollBannerConfig
+  const heroMobileLayout = useIntroHeroMobileLayout()
 
   const vw = useMotionValue(0)
   useLayoutEffect(() => {
@@ -37,24 +39,30 @@ export default function ScrollNav() {
   }, [videoGapTop])
 
   useLayoutEffect(() => {
-    const rafMeasure = () => requestAnimationFrame(measureVideoTop)
-    rafMeasure()
-    window.addEventListener('resize', rafMeasure)
-    window.addEventListener('scroll', rafMeasure, { passive: true })
-    const onLenisScroll = () => rafMeasure()
+    if (heroMobileLayout) {
+      videoGapTop.set(0)
+      return
+    }
+    measureVideoTop()
+    window.addEventListener('resize', measureVideoTop)
+    window.addEventListener('scroll', measureVideoTop, { passive: true })
+    const onLenisScroll = () => measureVideoTop()
     lenis?.on('scroll', onLenisScroll)
     return () => {
-      window.removeEventListener('resize', rafMeasure)
-      window.removeEventListener('scroll', rafMeasure)
+      window.removeEventListener('resize', measureVideoTop)
+      window.removeEventListener('scroll', measureVideoTop)
       lenis?.off('scroll', onLenisScroll)
     }
-  }, [lenis, measureVideoTop])
+  }, [heroMobileLayout, lenis, measureVideoTop, videoGapTop])
 
   useMotionValueEvent(scrollYProgress, 'change', () => {
-    requestAnimationFrame(measureVideoTop)
+    if (heroMobileLayout) return
+    measureVideoTop()
   })
 
-  const videoScale = useTransform(scrollYProgress, introVideoScaleForProgress)
+  const videoScale = useTransform(scrollYProgress, (p) =>
+    heroMobileLayout ? 1 : introVideoScaleForProgress(p),
+  )
 
   const sideInsetPx = useTransform([videoScale, vw], ([s, w]) => {
     const sc = typeof s === 'number' ? s : 1
@@ -76,51 +84,80 @@ export default function ScrollNav() {
     }
   }
 
+  const rowClass = cn(
+    'pointer-events-none relative mx-auto flex w-full',
+    cfg.rowLayoutClassName,
+    cfg.rowItemsAlignClassName,
+    cfg.rowMaxWidthClassName,
+    cfg.rowPaddingXClassName,
+    cfg.rowPaddingYClassName,
+  )
+
+  const navButtons = (
+    <>
+      <button
+        type="button"
+        onClick={scrollToTop}
+        className={cn(
+          cfg.labelClassName,
+          cfg.tylerExtraClassName,
+          'pointer-events-auto min-w-0 shrink text-left transition-opacity hover:opacity-80',
+        )}
+        data-cursor="expand"
+      >
+        TYLER
+      </button>
+
+      <button
+        type="button"
+        onClick={scrollToTop}
+        className={cn(
+          cfg.labelClassName,
+          cfg.yoonExtraClassName,
+          'pointer-events-auto min-w-0 shrink text-right transition-opacity hover:opacity-80',
+        )}
+        data-cursor="expand"
+      >
+        YOON
+      </button>
+    </>
+  )
+
+  if (heroMobileLayout) {
+    return (
+      <nav
+        className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-transparent pt-[max(env(safe-area-inset-top),10px)]"
+        suppressHydrationWarning
+      >
+        <div
+          className={cn(
+            rowClass,
+            'mx-auto w-full max-w-[min(100%,40rem)]',
+            'pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))]',
+          )}
+          style={{ height: cfg.heightPx }}
+        >
+          {navButtons}
+        </div>
+      </nav>
+    )
+  }
+
   return (
     <motion.nav
-      className="fixed left-0 right-0 z-[100] bg-transparent"
-      style={{ top: navTopPx }}
+      suppressHydrationWarning
+      className="pointer-events-none fixed inset-x-0 top-0 z-[100] bg-transparent will-change-transform"
+      style={{ y: navTopPx }}
     >
       <motion.div
-        className={cn(
-          'relative mx-auto flex w-full',
-          cfg.rowLayoutClassName,
-          cfg.rowItemsAlignClassName,
-          cfg.rowMaxWidthClassName,
-          cfg.rowPaddingXClassName,
-          cfg.rowPaddingYClassName
-        )}
+        className={rowClass}
         style={{
           height: cfg.heightPx,
           paddingLeft: sideInsetPx,
           paddingRight: sideInsetPx,
         }}
       >
-        <button
-          type="button"
-          onClick={scrollToTop}
-          className={cn(
-            cfg.labelClassName,
-            cfg.tylerExtraClassName,
-            'shrink-0 text-left hover:opacity-80 transition-opacity'
-          )}
-          data-cursor="expand"
-        >
-          TYLER
-        </button>
-
-        <button
-          type="button"
-          onClick={scrollToTop}
-          className={cn(
-            cfg.labelClassName,
-            cfg.yoonExtraClassName,
-            'shrink-0 text-right hover:opacity-80 transition-opacity'
-          )}
-          data-cursor="expand"
-        >
-          YOON
-        </button>
+        {navButtons}
       </motion.div>
     </motion.nav>
   )

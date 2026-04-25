@@ -1,12 +1,11 @@
 'use client'
 
-import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useId, useRef, useState } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import type { MotionValue } from 'framer-motion'
-import { useLenis } from '@/components/providers/SmoothScrollProvider'
 import { SIGNATURE_OUTER_TEXTURE_OPACITY } from '@/config/signature'
 import { useInViewActive } from '@/hooks/useInViewActive'
+import { cn } from '@/lib/utils'
 
 /**
  * Paths from `public/sig-2026.svg` — keep `d` strings in sync when replacing the asset.
@@ -17,9 +16,9 @@ const SIGNATURE_PATHS = [
 ] as const
 
 /**
- * Intro seam signature (SVG portaled to `document.body`) — sits above intro video (`z-20` in
- * `IntroGate.tsx`) and grain (`z-index: 40` on `.grain::after` in `globals.css`), below nav
- * (`z-[100]` in `ScrollNav.tsx`). Adjust here if layering with those changes.
+ * Stacking for the in-flow signature (sibling after `IntroGate` — above intro `z-20`, below
+ * `ScrollNav` `z-[100]`). Portaling was removed: fixed + getBoundingClientRect lagged behind
+ * compositor scroll on mobile Safari; document flow keeps the mark locked to scroll.
  */
 const SIGNATURE_OVERLAY_Z_CLASS = 'z-[45]'
 
@@ -54,6 +53,8 @@ const SIGNATURE_REVEAL_SCROLL_DELAY = 0.22
 const SIGNATURE_INK_TEXTURE_SRC = '/textures/marker-ink-texture.png'
 /** Soften ink fill only — grain texture stays sharp (sibling `<rect>`). */
 const SIGNATURE_INNER_BLUR_PX = 10
+/** Mobile / coarse pointer: skip blur + tiled texture (expensive compositing with masks). */
+const SIGNATURE_INNER_BLUR_PX_LIGHT = 0
 
 function SequentialMaskStroke({
   d,
@@ -92,18 +93,22 @@ function SequentialMaskStroke({
 
 /**
  * Seam signature between intro and brands: anchored to the zero-height sentinel + vertical tweak.
- * Portaled to `body` — see `SIGNATURE_OVERLAY_Z_CLASS` + `SIGNATURE_OVERLAY_WIDTH_CLASSES` above.
+ * Renders in document flow (not portaled) so vertical scroll stays pixel-locked on mobile WebKit.
  */
 export default function IntroWaveDivider() {
   const rawMaskId = useId()
   const maskId = rawMaskId.replace(/:/g, '')
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const [mounted] = useState(() => typeof window !== 'undefined')
-  const [pos, setPos] = useState<{ cx: number; cy: number } | null>(null)
+  const [lightEffects, setLightEffects] = useState(false)
   const isActive = useInViewActive(sentinelRef, { rootMargin: '260px 0px', threshold: 0 })
-  const lenis = useLenis()
   /** Nudge vs sentinel top so the mark sits between scaled video and brands block (+ = lower on screen). */
-  const BRANDS_TEXT_MIDPOINT_OFFSET_PX = 111
+  const BRANDS_TEXT_MIDPOINT_OFFSET_PX = 95
+  /**
+   * In-flow layout: the wrapper had 0 height (sentinel is h-0; SVG is absolute), so `#brands`
+   * `-mt-[…]` overlap read tighter vs the old portaled signature. Padding reserves document runway
+   * before the bridge/marquee so “AS SEEN ON” sits farther below the mark (similar to before).
+   */
+  const SIGNATURE_SEAM_RUNWAY_CLASS = 'pb-[calc(clamp(4rem,14vh,8.5rem)+30px)]'
   const { scrollYProgress } = useScroll({
     target: sentinelRef,
     /* Viewport band for scroll 0→1 — slightly tighter = a bit faster than 110% / -35%. */
@@ -116,108 +121,111 @@ export default function IntroWaveDivider() {
     { clamp: true }
   )
 
-  const updatePosition = useCallback(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    setPos({ cx: r.left + r.width / 2, cy: r.top + BRANDS_TEXT_MIDPOINT_OFFSET_PX })
-  }, [BRANDS_TEXT_MIDPOINT_OFFSET_PX])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 768px), (pointer: coarse)')
+    const sync = () => setLightEffects(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
-  useLayoutEffect(() => {
-    if (!mounted || !isActive) return
-    updatePosition()
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, { passive: true })
-    if (lenis) {
-      lenis.on('scroll', updatePosition)
-    }
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition)
-      lenis?.off('scroll', updatePosition)
-    }
-  }, [isActive, lenis, mounted, updatePosition])
+  const innerBlurPx = lightEffects ? SIGNATURE_INNER_BLUR_PX_LIGHT : SIGNATURE_INNER_BLUR_PX
 
-  const overlay =
-    mounted &&
-    isActive &&
-    typeof document !== 'undefined' &&
-    pos &&
-    createPortal(
-      <div
-        className={`pointer-events-none fixed ${SIGNATURE_OVERLAY_Z_CLASS} ${SIGNATURE_OVERLAY_WIDTH_CLASSES} -translate-x-1/2 -translate-y-1/2`}
-        style={{ left: pos.cx, top: pos.cy }}
-        aria-hidden
-      >
-        <svg
-          viewBox="0 0 1456.98 556.61"
-          className="h-auto w-full select-none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <pattern
-              id={`${maskId}-inkgrain`}
-              patternUnits="userSpaceOnUse"
+  const signatureSvg = (
+    <svg
+      viewBox="0 0 1456.98 556.61"
+      className="h-auto w-full select-none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        {!lightEffects ? (
+          <pattern
+            id={`${maskId}-inkgrain`}
+            patternUnits="userSpaceOnUse"
+            width="340"
+            height="340"
+          >
+            <image
+              href={SIGNATURE_INK_TEXTURE_SRC}
+              x="0"
+              y="0"
               width="340"
               height="340"
-            >
-              <image
-                href={SIGNATURE_INK_TEXTURE_SRC}
+              preserveAspectRatio="xMidYMid slice"
+            />
+          </pattern>
+        ) : null}
+      </defs>
+      {SIGNATURE_PATHS.map((path, index) => {
+        const perPathMaskId = `${maskId}-${index}`
+        const segmentStart = index === 0 ? 0 : SIGNATURE_SECOND_STROKE_START
+        const segmentEnd = index === 0 ? SIGNATURE_FIRST_STROKE_END : 1
+        return (
+          <g key={`signature-segment-${index}`}>
+            <mask id={perPathMaskId}>
+              <rect x="0" y="0" width="1456.98" height="556.61" fill="#000000" />
+              <SequentialMaskStroke
+                d={path}
+                segmentStart={segmentStart}
+                segmentEnd={segmentEnd}
+                progress={revealProgress}
+                strokeWidth={
+                  index === 0
+                    ? SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_1
+                    : SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_2
+                }
+              />
+            </mask>
+            <g style={innerBlurPx > 0 ? { filter: `blur(${innerBlurPx}px)` } : undefined}>
+              <path d={path} fill="var(--color-ink)" mask={`url(#${perPathMaskId})`} />
+            </g>
+            {!lightEffects ? (
+              <rect
                 x="0"
                 y="0"
-                width="340"
-                height="340"
-                preserveAspectRatio="xMidYMid slice"
+                width="1456.98"
+                height="556.61"
+                fill={`url(#${maskId}-inkgrain)`}
+                mask={`url(#${perPathMaskId})`}
+                style={{
+                  mixBlendMode: 'screen',
+                  opacity: SIGNATURE_OUTER_TEXTURE_OPACITY,
+                }}
               />
-            </pattern>
-          </defs>
-          {SIGNATURE_PATHS.map((path, index) => {
-            const perPathMaskId = `${maskId}-${index}`
-            const segmentStart = index === 0 ? 0 : SIGNATURE_SECOND_STROKE_START
-            const segmentEnd = index === 0 ? SIGNATURE_FIRST_STROKE_END : 1
-            return (
-              <g key={`signature-segment-${index}`}>
-                <mask id={perPathMaskId}>
-                  <rect x="0" y="0" width="1456.98" height="556.61" fill="#000000" />
-                  <SequentialMaskStroke
-                    d={path}
-                    segmentStart={segmentStart}
-                    segmentEnd={segmentEnd}
-                    progress={revealProgress}
-                    strokeWidth={
-                      index === 0
-                        ? SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_1
-                        : SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_2
-                    }
-                  />
-                </mask>
-                <g style={{ filter: `blur(${SIGNATURE_INNER_BLUR_PX}px)` }}>
-                  <path d={path} fill="var(--color-ink)" mask={`url(#${perPathMaskId})`} />
-                </g>
-                <rect
-                  x="0"
-                  y="0"
-                  width="1456.98"
-                  height="556.61"
-                  fill={`url(#${maskId}-inkgrain)`}
-                  mask={`url(#${perPathMaskId})`}
-                  style={{
-                    mixBlendMode: 'screen',
-                    opacity: SIGNATURE_OUTER_TEXTURE_OPACITY,
-                  }}
-                />
-              </g>
-            )
-          })}
-        </svg>
-      </div>,
-      document.body
-    )
+            ) : null}
+          </g>
+        )
+      })}
+    </svg>
+  )
 
   return (
-    <>
-      <div ref={sentinelRef} className="h-0 w-full shrink-0" aria-hidden />
-      {overlay}
-    </>
+    <div
+      className={cn(
+        'relative w-full overflow-visible',
+        SIGNATURE_OVERLAY_Z_CLASS,
+        SIGNATURE_SEAM_RUNWAY_CLASS,
+      )}
+    >
+      <div
+        ref={sentinelRef}
+        data-signature-sentinel
+        className="h-0 w-full shrink-0"
+        aria-hidden
+      />
+      {isActive ? (
+        <div
+          aria-hidden
+          className={cn('pointer-events-none absolute left-1/2', SIGNATURE_OVERLAY_WIDTH_CLASSES)}
+          style={{
+            top: BRANDS_TEXT_MIDPOINT_OFFSET_PX,
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          {signatureSvg}
+        </div>
+      ) : null}
+    </div>
   )
 }

@@ -81,7 +81,7 @@ export default function FeaturedWork({ projects }: { projects: Project[] }) {
           }
         >
           {doubled.map((project, i) => (
-            <CarouselCard key={`${project.id}-${i}`} project={project} />
+            <CarouselCard key={`${project.id}-${i}`} project={project} priorityThumbnail={i === 0} />
           ))}
         </div>
       </div>
@@ -89,7 +89,7 @@ export default function FeaturedWork({ projects }: { projects: Project[] }) {
   )
 }
 
-function CarouselCard({ project }: { project: Project }) {
+function CarouselCard({ project, priorityThumbnail = false }: { project: Project; priorityThumbnail?: boolean }) {
   const { openModal } = useVideoModal()
   const cardHref = project.cardHref?.trim()
 
@@ -100,7 +100,7 @@ function CarouselCard({ project }: { project: Project }) {
       )}
       style={{ aspectRatio: '9/16' }}
     >
-      <ProjectThumbnailMedia src={project.thumbnail} zoom={project.thumbnailZoom} />
+      <ProjectThumbnailMedia src={project.thumbnail} zoom={project.thumbnailZoom} priority={priorityThumbnail} />
       <div
         className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/85 via-black/30 to-black/5"
         aria-hidden
