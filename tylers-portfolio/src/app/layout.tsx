@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import SmoothScrollProvider from "@/components/providers/SmoothScrollProvider";
-import CustomCursor from "@/components/CustomCursor";
 import { fontClassNames } from "@/lib/fonts";
 
 export const metadata: Metadata = {
@@ -36,7 +35,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <SmoothScrollProvider>
           {children}
-          <CustomCursor />
         </SmoothScrollProvider>
       </body>
     </html>

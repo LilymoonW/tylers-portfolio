@@ -15,12 +15,13 @@
   --color-white: #ebe6de;
   --color-black: #000000;
 
-  --font-display: var(--font-bebas-neue);
-  --font-body: var(--font-dm-sans);
+  --font-display: var(--font-inter-variable);
+  --font-body: var(--font-inter-variable);
 }
 
 :root {
   --base-font-size: 16px;
+  --grain-opacity: 0.15;
   color-scheme: light;
 }
 
@@ -33,8 +34,27 @@ html {
   color: var(--color-ink);
 }
 
+/*
+ * One viewport-fixed grain layer for the whole app. Sits behind body content
+ * (body is z-1), so it shows through every transparent section continuously —
+ * no per-section edges/seams. Opaque sections (e.g. home dark column `bg-black`,
+ * white work pages) cover it and supply their own `.film-grain` above their bg.
+ */
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('/textures/film-grain.png');
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  opacity: var(--grain-opacity);
+}
+
 body {
   position: relative;
+  z-index: 1;
   font-family: var(--font-body), system-ui, sans-serif;
   overflow-x: hidden;
 }
@@ -72,6 +92,20 @@ body * {
   display: none;
 }
 
+/* Tiled film grain — sits above solid/gradient backgrounds, under foreground content. */
+.film-grain {
+  background-image: url('/textures/film-grain.png');
+  background-repeat: repeat;
+  background-attachment: fixed;
+  opacity: var(--grain-opacity);
+}
+
+@media (pointer: coarse) {
+  :root {
+    --grain-opacity: 0.15;
+  }
+}
+
 /* Contact signature: ink reads into the warm paper field (intro seam SVG is in-flow; contact uses multiply). */
 .signature-marker-on-paper {
   mix-blend-mode: multiply;
@@ -105,6 +139,20 @@ body * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /*
+   * The blanket 0.01ms reset above is for *finite* transitions (snap to end
+   * state). The brand/featured carousels are `infinite` loops, so 0.01ms makes
+   * them cycle thousands of times per second — i.e. moving absurdly fast. Pin
+   * them back to their normal, intended durations so the speed is capped at
+   * what everyone else sees.
+   */
+  #brands .brand-marquee-track {
+    animation-duration: var(--brand-marquee-duration, 60s) !important;
+  }
+  .featured-work-track {
+    animation-duration: var(--featured-duration, 45s) !important;
   }
 }
 
@@ -184,4 +232,24 @@ body * {
   animation-play-state: var(--featured-play-state, running);
   backface-visibility: hidden;
   will-change: transform;
+}
+
+.featured-marquee-card {
+  transition: transform 0.35s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .featured-marquee-card:hover {
+    transform: translate3d(0, -16px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .featured-marquee-card {
+    transition: none;
+  }
+
+  .featured-marquee-card:hover {
+    transform: none;
+  }
 }

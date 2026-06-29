@@ -10,6 +10,12 @@ export const introContactLabel = 'CONTACT' as const
 /** Tight gap from the scaled intro video’s bottom edge to caption baselines. */
 export const introSideCaptionBelowVideoGapPx = 8
 
+/** Delay after intro video starts before the scroll hint appears. */
+export const introScrollIndicatorDelayMs = 2000
+
+/** Hide the scroll hint once intro scroll progress passes this threshold. */
+export const introScrollIndicatorHideProgress = 0.02
+
 /**
  * Intro sticky video scale vs scroll progress (`IntroGate` + banner alignment).
  * Video is full-bleed width and scales from the center (`transform-origin: 50% 50%`).

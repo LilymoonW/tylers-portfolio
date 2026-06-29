@@ -24,10 +24,10 @@ const SIGNATURE_OVERLAY_Z_CLASS = 'z-[45]'
 
 /**
  * Display size: width clamps on the fixed wrapper (SVG is `w-full` `h-auto` inside).
- * ~40% of the old near-full-bleed width — raise `360` / `36vw` to grow again.
+ * Raise `270` / `27vw` to grow again.
  */
 const SIGNATURE_OVERLAY_WIDTH_CLASSES =
-  'w-[min(calc(36vw-10px),360px)] min-w-[min(140px,30vw)] max-w-[min(360px,92vw)]'
+  'w-[min(calc(27vw-10px),270px)] min-w-[min(105px,22vw)] max-w-[min(270px,85vw)]'
 
 /** White mask stroke per reveal pass: wider = a bolder “ink” band while that segment draws on. */
 const SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_1 = 52
@@ -56,6 +56,11 @@ const SIGNATURE_INNER_BLUR_PX = 10
 /** Mobile / coarse pointer: skip blur + tiled texture (expensive compositing with masks). */
 const SIGNATURE_INNER_BLUR_PX_LIGHT = 0
 
+/**
+ * White stroke that traces a single path and "draws on" via `pathLength` over
+ * its `[segmentStart, segmentEnd]` band. Used inside a shared mask so every
+ * pass contributes to one unified reveal region (see render below).
+ */
 function SequentialMaskStroke({
   d,
   segmentStart,
@@ -157,46 +162,51 @@ export default function IntroWaveDivider() {
           </pattern>
         ) : null}
       </defs>
-      {SIGNATURE_PATHS.map((path, index) => {
-        const perPathMaskId = `${maskId}-${index}`
-        const segmentStart = index === 0 ? 0 : SIGNATURE_SECOND_STROKE_START
-        const segmentEnd = index === 0 ? SIGNATURE_FIRST_STROKE_END : 1
-        return (
-          <g key={`signature-segment-${index}`}>
-            <mask id={perPathMaskId}>
-              <rect x="0" y="0" width="1456.98" height="556.61" fill="#000000" />
-              <SequentialMaskStroke
-                d={path}
-                segmentStart={segmentStart}
-                segmentEnd={segmentEnd}
-                progress={revealProgress}
-                strokeWidth={
-                  index === 0
-                    ? SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_1
-                    : SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_2
-                }
-              />
-            </mask>
-            <g style={innerBlurPx > 0 ? { filter: `blur(${innerBlurPx}px)` } : undefined}>
-              <path d={path} fill="var(--color-ink)" mask={`url(#${perPathMaskId})`} />
-            </g>
-            {!lightEffects ? (
-              <rect
-                x="0"
-                y="0"
-                width="1456.98"
-                height="556.61"
-                fill={`url(#${maskId}-inkgrain)`}
-                mask={`url(#${perPathMaskId})`}
-                style={{
-                  mixBlendMode: 'screen',
-                  opacity: SIGNATURE_OUTER_TEXTURE_OPACITY,
-                }}
-              />
-            ) : null}
-          </g>
-        )
-      })}
+      {/*
+        One shared reveal mask for every pass. Both glyphs are drawn as a single
+        ink layer through this mask, so where a later stroke crosses ink that's
+        already revealed it's white-on-white (adds nothing) — no fading "over a
+        line that's already there". Each pass still traces its own path.
+      */}
+      <mask id={`${maskId}-ink`}>
+        <rect x="0" y="0" width="1456.98" height="556.61" fill="#000000" />
+        {SIGNATURE_PATHS.map((path, index) => (
+          <SequentialMaskStroke
+            key={`signature-stroke-${index}`}
+            d={path}
+            segmentStart={index === 0 ? 0 : SIGNATURE_SECOND_STROKE_START}
+            segmentEnd={index === 0 ? SIGNATURE_FIRST_STROKE_END : 1}
+            progress={revealProgress}
+            strokeWidth={
+              index === 0
+                ? SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_1
+                : SIGNATURE_REVEAL_STROKE_WIDTH_STROKE_2
+            }
+          />
+        ))}
+      </mask>
+      <g
+        mask={`url(#${maskId}-ink)`}
+        style={innerBlurPx > 0 ? { filter: `blur(${innerBlurPx}px)` } : undefined}
+      >
+        {SIGNATURE_PATHS.map((path, index) => (
+          <path key={`signature-fill-${index}`} d={path} fill="var(--color-ink)" />
+        ))}
+      </g>
+      {!lightEffects ? (
+        <rect
+          x="0"
+          y="0"
+          width="1456.98"
+          height="556.61"
+          fill={`url(#${maskId}-inkgrain)`}
+          mask={`url(#${maskId}-ink)`}
+          style={{
+            mixBlendMode: 'screen',
+            opacity: SIGNATURE_OUTER_TEXTURE_OPACITY,
+          }}
+        />
+      ) : null}
     </svg>
   )
 

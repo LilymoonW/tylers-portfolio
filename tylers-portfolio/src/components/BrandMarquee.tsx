@@ -1,83 +1,73 @@
-'use client'
+"use client";
 
-import type { Brand } from '@/types'
-import { brandMarqueeTracksConfig } from '@/config/brandMarquee'
-import { bannerTypeBase } from '@/config/scrollBanner'
-import { cn } from '@/lib/utils'
-import { useRef, type CSSProperties } from 'react'
-import { useInViewActive } from '@/hooks/useInViewActive'
+import type { Brand } from "@/types";
+import { brandMarqueeTracksConfig } from "@/config/brandMarquee";
+import { bannerTypeBase } from "@/config/scrollBanner";
+import { cn } from "@/lib/utils";
+import { useRef, type CSSProperties } from "react";
+import Image from "next/image";
+import { useInViewActive } from "@/hooks/useInViewActive";
 
 function BrandLogoSlot({
   brand,
   logoMaxHeightPx,
   logoSlotMaxWidthPx,
 }: {
-  brand: Brand
-  logoMaxHeightPx: number
-  logoSlotMaxWidthPx: number
+  brand: Brand;
+  logoMaxHeightPx: number;
+  logoSlotMaxWidthPx: number;
 }) {
-  const scale = brand.logoScale ?? 1
-  const slotH = Math.round(logoMaxHeightPx * scale)
-  /** Cell width follows rendered logo (≤ max); strip `gap` is edge clearance → center pitch = w₁/2 + gap + w₂/2. */
-  const maxW = logoSlotMaxWidthPx
-  const brightness = brand.logoBrightness
+  const scale = brand.logoScale ?? 1;
+  const slotH = Math.round(logoMaxHeightPx * scale);
+  const slotW = logoSlotMaxWidthPx;
+  const brightness = brand.logoBrightness;
 
-  const img = (
-    // eslint-disable-next-line @next/next/no-img-element -- marquee logos are small, local assets with fixed slot sizing
-    <img
-      src={brand.logoSrc}
-      alt={brand.name}
-      className="block h-auto w-auto max-w-full object-contain object-center opacity-50 grayscale transition-all duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0"
-      style={{ maxHeight: slotH, maxWidth: maxW, width: 'auto', height: 'auto' }}
-      loading="lazy"
-      decoding="async"
-    />
-  )
+  /*
+   * Fixed-size slot so `next/image fill` has a positioned ancestor with known
+   * dimensions → Next.js serves the logo as WebP/AVIF automatically (vs the
+   * old `<img>` which always served the original PNG). `object-contain` keeps
+   * aspect ratio; the slot width is uniform so marquee gaps are consistent.
+   */
+  const imgEl = (
+    <div className="relative" style={{ width: slotW, height: slotH }}>
+      <Image
+        src={brand.logoSrc}
+        alt={brand.name}
+        fill
+        sizes={`${slotW}px`}
+        className="object-contain object-center opacity-50 grayscale transition-all duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0"
+        style={brightness != null ? { filter: `brightness(${brightness})` } : undefined}
+        loading="lazy"
+      />
+    </div>
+  );
 
-  const imgNode =
-    brightness != null ?
-      (
-        <span
-          className="inline-flex max-w-full items-center justify-center"
-          style={{ filter: `brightness(${brightness})` }}
-        >
-          {img}
-        </span>
-      ) :
-      img
-
-  const href = brand.url?.trim()
+  const href = brand.url?.trim();
   const inner =
-    href != null && href !== '' ? (
+    href != null && href !== "" ? (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="m-0 inline-flex max-w-full items-center justify-center border-0 p-0 no-underline outline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
-        data-cursor="expand"
+        className="m-0 flex items-center justify-center border-0 p-0 no-underline outline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60"
       >
-        {imgNode}
+        {imgEl}
       </a>
     ) : (
-      <span className="m-0 inline-flex max-w-full items-center justify-center border-0 p-0" data-cursor="expand">
-        {imgNode}
+      <span className="m-0 flex items-center justify-center border-0 p-0">
+        {imgEl}
       </span>
-    )
+    );
 
   return (
     <div
-      className="group/logo box-border inline-flex max-w-full shrink-0 items-center justify-center"
-      style={{
-        height: slotH,
-        maxWidth: maxW,
-        flex: '0 0 auto',
-        width: 'max-content',
-      }}
+      className="group/logo box-border shrink-0"
+      style={{ width: slotW, height: slotH, flex: "0 0 auto" }}
       title={brand.name}
     >
       {inner}
     </div>
-  )
+  );
 }
 
 function MarqueeTrack({
@@ -88,20 +78,20 @@ function MarqueeTrack({
   logoSlotMaxWidthPx,
 }: {
   /** Keeps React keys (and mental model) disjoint from the other row even if `brand.id` repeats. */
-  trackId: 'top' | 'bottom'
-  brands: Brand[]
-  direction: 'forward' | 'reverse'
-  logoMaxHeightPx: number
-  logoSlotMaxWidthPx: number
+  trackId: "top" | "bottom";
+  brands: Brand[];
+  direction: "forward" | "reverse";
+  logoMaxHeightPx: number;
+  logoSlotMaxWidthPx: number;
 }) {
-  const doubled = [...brands, ...brands]
+  const doubled = [...brands, ...brands];
 
   return (
     <div className="brand-marquee-row">
       <div
         className={cn(
-          'brand-marquee-track',
-          direction === 'reverse' && 'brand-marquee-track--reverse'
+          "brand-marquee-track",
+          direction === "reverse" && "brand-marquee-track--reverse",
         )}
       >
         <div className="brand-marquee-strip">
@@ -126,25 +116,28 @@ function MarqueeTrack({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function BrandMarquee({
   topRow,
   bottomRow,
 }: {
-  topRow: Brand[]
-  bottomRow: Brand[]
+  topRow: Brand[];
+  bottomRow: Brand[];
 }) {
-  const sectionRef = useRef<HTMLElement>(null)
-  const isActive = useInViewActive(sectionRef, { rootMargin: '0px', threshold: 0 })
-  const tracks = brandMarqueeTracksConfig
+  const sectionRef = useRef<HTMLElement>(null);
+  const isActive = useInViewActive(sectionRef, {
+    rootMargin: "0px",
+    threshold: 0,
+  });
+  const tracks = brandMarqueeTracksConfig;
 
   const brandsSectionStyle = {
-    ['--brand-marquee-duration']: `${tracks.marqueeDurationSec}s`,
-    ['--brand-marquee-logo-gap']: `${tracks.logoGapPx}px`,
-    ['--brand-marquee-play-state']: isActive ? 'running' : 'paused',
-  } as CSSProperties
+    ["--brand-marquee-duration"]: `${tracks.marqueeDurationSec}s`,
+    ["--brand-marquee-logo-gap"]: `${tracks.logoGapPx}px`,
+    ["--brand-marquee-play-state"]: isActive ? "running" : "paused",
+  } as CSSProperties;
 
   return (
     <section
@@ -173,7 +166,10 @@ export default function BrandMarquee({
         >
           AS SEEN ON
         </h2>
-        <div className="flex w-full min-w-0 flex-col" style={{ gap: `${tracks.rowGapPx}px` }}>
+        <div
+          className="flex w-full min-w-0 flex-col"
+          style={{ gap: `${tracks.rowGapPx}px` }}
+        >
           <MarqueeTrack
             trackId="top"
             brands={topRow}
@@ -191,5 +187,5 @@ export default function BrandMarquee({
         </div>
       </div>
     </section>
-  )
+  );
 }

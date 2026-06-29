@@ -38,6 +38,9 @@ const BLUR_PX_SAFARI = 18
 /** Large CSS `filter: blur()` radii are disproportionately expensive on Chromium compositors. */
 const BLUR_PX_CHROMIUM = 26
 
+/** Paint past the layout box so the field fades to black before content below. */
+const ABOVE_BRANDS_VISUAL_BLEED_VH = 55
+
 type GradientColorOverrides = Partial<typeof GRADIENT_COLORS>
 type BackdropOverrides = Partial<typeof BACKDROP_COLORS>
 
@@ -60,12 +63,8 @@ export default function BrandsGradientBridge({
   placement = 'above-brands',
 }: Props) {
   const trackRef = useRef<HTMLElement | null>(null)
-  const [resolvedBlurPx, setResolvedBlurPx] = useState(() => {
-    if (typeof window === 'undefined') return blurPx
-    if (isSafariBrowser()) return Math.min(blurPx, BLUR_PX_SAFARI)
-    if (isChromiumBasedBrowser()) return Math.min(blurPx, BLUR_PX_CHROMIUM)
-    return blurPx
-  })
+  const [mounted, setMounted] = useState(false)
+  const [resolvedBlurPx, setResolvedBlurPx] = useState(blurPx)
   const isActive = useInViewActive(trackRef, { rootMargin: '260px 0px', threshold: 0 })
   const { scrollYProgress } = useScroll({
     target: trackRef,
@@ -84,12 +83,22 @@ export default function BrandsGradientBridge({
       : BACKDROP_COLORS
   const b = { ...defaultBackdrop, ...backdrop }
 
+  const visualBleedVh =
+    placement === 'above-brands' ? ABOVE_BRANDS_VISUAL_BLEED_VH : 0
+  const paintHeight =
+    visualBleedVh > 0
+      ? `calc(${heightVh}vh + ${visualBleedVh}vh)`
+      : `${heightVh}vh`
+  const backdropGradient =
+    placement === 'above-brands'
+      ? `linear-gradient(to bottom, ${b.top} 0%, ${b.bottom} 100%)`
+      : `linear-gradient(to bottom, ${b.top} 0%, ${b.bottom} 100%)`
   const radialY = placement === 'below-stats' ? '-20%' : '120%'
   const transformOrigin =
     placement === 'below-stats' ? '50% 0%' : '50% 100%'
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    setMounted(true)
     const narrow = window.matchMedia('(max-width: 1024px)')
     const sync = () => {
       let next = blurPx
@@ -107,26 +116,34 @@ export default function BrandsGradientBridge({
     <section
       ref={trackRef}
       aria-hidden
-      className="relative w-full overflow-hidden"
+      className="relative w-full overflow-visible"
       style={{ height: `${heightVh}vh` }}
     >
-      <div className="pointer-events-none relative isolate h-full w-full">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 w-full overflow-visible"
+        style={{ height: paintHeight }}
+      >
         <div
           className="absolute inset-0"
           style={{
-            background: `linear-gradient(to bottom, ${b.top} 0%, ${b.bottom} 100%)`,
+            background: backdropGradient,
           }}
         />
-        <motion.div
-          className={`absolute inset-0 ${isActive ? 'will-change-transform' : ''}`}
-          style={{
-            background: `radial-gradient(ellipse 110vw 110% at 50% ${radialY}, ${c.core} 0%, ${c.inner} 18%, ${c.mid} 34%, ${c.outer} 56%, transparent 86%)`,
-            scale: isActive ? scale : 1,
-            opacity: isActive ? opacity : 0,
-            transformOrigin,
-            filter: `blur(${resolvedBlurPx}px)`,
-          }}
-        />
+        <div
+          className="absolute inset-x-0 top-0 w-full overflow-visible"
+          style={{ height: `${heightVh}vh` }}
+        >
+          <motion.div
+            className={`absolute inset-0 ${isActive ? 'will-change-transform' : ''}`}
+            style={{
+              background: `radial-gradient(ellipse 110vw 110% at 50% ${radialY}, ${c.core} 0%, ${c.inner} 18%, ${c.mid} 34%, ${c.outer} 56%, transparent 86%)`,
+              scale: !mounted ? 0.45 : isActive ? scale : 1,
+              opacity: !mounted ? 0 : isActive ? opacity : 0,
+              transformOrigin,
+              filter: `blur(${resolvedBlurPx}px)`,
+            }}
+          />
+        </div>
       </div>
     </section>
   )
