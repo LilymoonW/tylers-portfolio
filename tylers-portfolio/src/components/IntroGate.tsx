@@ -187,12 +187,12 @@ export default function IntroGate() {
     v.addEventListener("canplay", onReady);
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") tryPlay();
+      if (document.visibilityState === "visible" && !v.ended) tryPlay();
     };
     document.addEventListener("visibilitychange", onVisibility);
 
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) tryPlay();
+      if (e.persisted && !v.ended) tryPlay();
     };
     window.addEventListener("pageshow", onPageShow);
 
@@ -208,6 +208,7 @@ export default function IntroGate() {
 
     const onPause = () => {
       if (!isActive) return;
+      if (v.ended) return;
       if (v.currentTime <= 0.08 || document.visibilityState === "visible") {
         tryPlay();
       }
@@ -247,7 +248,6 @@ export default function IntroGate() {
             src="/video/yoon-front-vid.mp4#t=0.001"
             autoPlay
             muted
-            loop
             playsInline
             preload="metadata"
             controls={false}

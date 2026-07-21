@@ -92,11 +92,19 @@ body * {
   display: none;
 }
 
-/* Tiled film grain — sits above solid/gradient backgrounds, under foreground content. */
+/*
+ * Tiled film grain — sits above solid/gradient backgrounds, under foreground
+ * content. No `background-attachment: fixed` here: that setting forces a full
+ * repaint on every scroll frame (the browser re-computes the background
+ * position relative to the viewport for every pixel scrolled). The viewport-
+ * locked global grain is `html::before { position: fixed }` which IS
+ * GPU-composited and scroll-free. This class is only used on opaque sections
+ * (e.g. the dark column `absolute inset-0`) where normal tiling is correct.
+ */
 .film-grain {
   background-image: url('/textures/film-grain.png');
   background-repeat: repeat;
-  background-attachment: fixed;
+  background-size: 256px 256px;
   opacity: var(--grain-opacity);
 }
 
