@@ -47,6 +47,8 @@ export default function TopEyeBanner() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuPanelId = useId();
   const menuWrapRef = useRef<HTMLDivElement>(null);
+  /** Signature sentinel: looked up once, re-queried only if it is missing or has left the DOM. */
+  const sentinelRef = useRef<HTMLElement | null>(null);
   const menuOpenVisible = !ariaHidden && menuOpen;
 
   useEffect(() => {
@@ -56,8 +58,13 @@ export default function TopEyeBanner() {
 
     const sample = () => {
       rafId = 0;
-      const sentinel = document.querySelector("[data-signature-sentinel]");
-      if (!sentinel || !(sentinel instanceof HTMLElement)) return;
+      let sentinel = sentinelRef.current;
+      if (!sentinel || !sentinel.isConnected) {
+        const found = document.querySelector("[data-signature-sentinel]");
+        sentinel = found instanceof HTMLElement ? found : null;
+        sentinelRef.current = sentinel;
+      }
+      if (!sentinel) return;
       const top = sentinel.getBoundingClientRect().top;
 
       if (

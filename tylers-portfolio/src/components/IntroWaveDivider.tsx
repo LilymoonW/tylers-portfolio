@@ -109,11 +109,10 @@ export default function IntroWaveDivider() {
   /** Nudge vs sentinel top so the mark sits between scaled video and brands block (+ = lower on screen). */
   const BRANDS_TEXT_MIDPOINT_OFFSET_PX = 95
   /**
-   * In-flow layout: the wrapper had 0 height (sentinel is h-0; SVG is absolute), so `#brands`
-   * `-mt-[…]` overlap read tighter vs the old portaled signature. Padding reserves document runway
-   * before the bridge/marquee so “AS SEEN ON” sits farther below the mark (similar to before).
+   * In-flow layout: the wrapper has 0 height (sentinel is h-0; SVG is absolute). The gradient
+   * bridge starts right here and is transparent at its top, so the mark sits over paper.
    */
-  const SIGNATURE_SEAM_RUNWAY_CLASS = 'pb-[calc(clamp(4rem,14vh,8.5rem)+30px)]'
+  const SIGNATURE_SEAM_RUNWAY_CLASS = 'pb-0'
   const { scrollYProgress } = useScroll({
     target: sentinelRef,
     /* Viewport band for scroll 0→1 — slightly tighter = a bit faster than 110% / -35%. */

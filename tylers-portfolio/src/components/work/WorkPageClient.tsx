@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   AnimatePresence,
   motion,
@@ -12,31 +19,47 @@ import {
 import type { Project } from "@/types";
 import { bannerTypeBase, bannerTypeChip } from "@/config/scrollBanner";
 import { useLenis } from "@/components/providers/SmoothScrollProvider";
+import { isBackForwardNavigation } from "@/lib/navigationType";
 import { useInViewActive } from "@/hooks/useInViewActive";
 import { cn } from "@/lib/utils";
 import ProjectsGrid from "@/components/work/ProjectsGrid";
-import FilmGrain from "@/components/FilmGrain";
 
 type FilterValue = "all" | string;
 
 // SVG alpha mask for the hero fill behind PORTFOLIO (same defs as the wordmark mask).
 const PORTFOLIO_HERO_FILL_MASK = "url(#portfolio-reveal-mask)";
 
+const PORTRAIT_QUERY = "(orientation: portrait)";
+
+function subscribePortrait(onChange: () => void) {
+  const mq = window.matchMedia(PORTRAIT_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function getPortraitSnapshot() {
+  return window.matchMedia(PORTRAIT_QUERY).matches;
+}
+
+function getPortraitServerSnapshot() {
+  return false;
+}
+
 export default function WorkPageClient({ projects }: { projects: Project[] }) {
   const lenis = useLenis();
-  // Always open the portfolio at the top (hero + filters), not mid-scroll in the
-  // wheel scrub track — avoids browser scroll restoration / bfcache landing in the pin.
+  // Open the portfolio at the top (hero + filters) on fresh loads, but leave
+  // Back/Forward alone so the browser can restore where the visitor was.
+  // Runs once per mount; does not re-fire when Lenis resolves a frame later.
+  const forcedTopRef = useRef(false);
   useLayoutEffect(() => {
-    const goTop = () => {
-      if (lenis) {
-        lenis.scrollTo(0, { immediate: true });
-      } else {
-        window.scrollTo(0, 0);
-      }
-    };
-    goTop();
-    const id = requestAnimationFrame(goTop);
-    return () => cancelAnimationFrame(id);
+    if (forcedTopRef.current) return;
+    forcedTopRef.current = true;
+    if (isBackForwardNavigation()) return;
+    if (lenis) {
+      lenis.scrollTo(0, { immediate: true });
+    } else {
+      window.scrollTo(0, 0);
+    }
   }, [lenis]);
   const [brand, setBrand] = useState<FilterValue>("all");
   const [year, setYear] = useState<FilterValue>("all");
@@ -99,15 +122,11 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
 
   // Portrait / vertical viewports: tighter halos so blurs do not dominate the
   // narrow wordmark (CSS filter blur + SVG mask blur + smaller mask pockets).
-  const [portraitLayout, setPortraitLayout] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(orientation: portrait)");
-    const sync = () => setPortraitLayout(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
+  const portraitLayout = useSyncExternalStore(
+    subscribePortrait,
+    getPortraitSnapshot,
+    getPortraitServerSnapshot,
+  );
 
   // One clamp for every PORTFOLIO layer (SVG mask + h1s) so portrait
   // shrink stays aligned and centered in the existing `inline-grid` stack.
@@ -198,8 +217,7 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
   const textBlurRevealMaskPortrait = useMotionTemplate`radial-gradient(circle at ${tmx}% ${tmy}%, black 0px, black min(8vmin, 34px), rgba(0,0,0,0.78) min(11vmin, 44px), rgba(0,0,0,0.42) min(14vmin, 55px), rgba(0,0,0,0.16) min(18vmin, 68px), transparent min(24vmin, 105px))`;
 
   return (
-    <main className="relative isolate min-h-screen overflow-visible bg-white text-black">
-      <FilmGrain className="absolute inset-0 z-[1]" />
+    <main id="main" className="relative isolate min-h-screen overflow-visible bg-white text-black">
       <div className="relative z-[2]">
         <section className="mx-auto w-full max-w-[1400px] overflow-visible px-3 min-[420px]:px-5 sm:px-6 pt-10 md:pt-14">
           <div className="flex items-center justify-between">
@@ -322,7 +340,6 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
                         "radial-gradient(ellipse 100% 90% at 50% 42%, rgb(245 252 255) 0%, rgb(232 248 255) 35%, rgb(214 238 252) 68%, rgb(196 228 248) 100%)",
                     }}
                   />
-                  <FilmGrain className="absolute inset-0 z-[1]" />
                 </motion.div>
 
                 {/* Royal blue glow — two stacked copies + heavy blur so the halo reads clearly under the black blur. */}
@@ -334,6 +351,7 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
                     fontSize: portfolioHeroFontSize,
                     padding: portfolioHeroPadding,
                     filter: portraitLayout ? "blur(5px)" : "blur(8px)",
+                    willChange: "filter",
                     maskImage: portraitLayout
                       ? textBlurRevealMaskPortrait
                       : textBlurRevealMask,
@@ -353,6 +371,7 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
                     fontSize: portfolioHeroFontSize,
                     padding: portfolioHeroPadding,
                     filter: portraitLayout ? "blur(6px)" : "blur(10px)",
+                    willChange: "filter",
                     maskImage: portraitLayout
                       ? textBlurRevealMaskPortrait
                       : textBlurRevealMask,
@@ -372,6 +391,7 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
                     fontSize: portfolioHeroFontSize,
                     padding: portfolioHeroPadding,
                     filter: portraitLayout ? "blur(3px)" : "blur(5px)",
+                    willChange: "filter",
                     maskImage: portraitLayout
                       ? textBlurRevealMaskPortrait
                       : textBlurRevealMask,
@@ -413,7 +433,7 @@ export default function WorkPageClient({ projects }: { projects: Project[] }) {
               type="button"
               onClick={() => setSortOpen((v) => !v)}
               aria-expanded={sortOpen}
-              aria-controls="work-sort-panel"
+              aria-controls={sortOpen ? "work-sort-panel" : undefined}
               className="group inline-flex items-baseline gap-2.5 text-black outline-none"
             >
               <span
@@ -574,6 +594,7 @@ function FilterChip({
     <button
       type="button"
       onClick={() => onSelect(value)}
+      aria-pressed={selected}
       className={cn(
         bannerTypeChip,
         "rounded-full border px-3 py-1.5 transition",

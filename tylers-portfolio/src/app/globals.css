@@ -34,24 +34,6 @@ html {
   color: var(--color-ink);
 }
 
-/*
- * One viewport-fixed grain layer for the whole app. Sits behind body content
- * (body is z-1), so it shows through every transparent section continuously —
- * no per-section edges/seams. Opaque sections (e.g. home dark column `bg-black`,
- * white work pages) cover it and supply their own `.film-grain` above their bg.
- */
-html::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: url('/textures/film-grain.png');
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  opacity: var(--grain-opacity);
-}
-
 body {
   position: relative;
   z-index: 1;
@@ -59,14 +41,35 @@ body {
   overflow-x: hidden;
 }
 
-/* Preserve text exactly as typed by default. */
-html,
-body,
-body * {
-  text-transform: none;
+/*
+ * Film grain: one viewport-fixed layer over the whole page, like grain on a
+ * print. The scene scrolls under it and the grain never moves, on paper and on
+ * black alike, so there is no seam where sections meet. Plain alpha (no blend
+ * mode) keeps it a single cheap composited tile. Tune with `--grain-opacity`.
+ */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url('/textures/film-grain.png');
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  opacity: var(--grain-opacity);
 }
 
-/* Force uppercase only on `/portfolio/[projectId]` template content. */
+@layer base {
+  /* Preserve text exactly as typed by default. Lives in the base layer so the
+     `uppercase` utility (a later layer) still wins where a component asks for it. */
+  html,
+  body,
+  body * {
+    text-transform: none;
+  }
+}
+
+/* Force uppercase on `/portfolio/[projectId]` template content. */
 .project-page-uppercase,
 .project-page-uppercase * {
   text-transform: uppercase !important;
@@ -76,47 +79,6 @@ body * {
 .project-page-bio,
 .project-page-bio * {
   text-transform: none !important;
-}
-
-@media (orientation: portrait) {
-  .hide-in-portrait {
-    display: none !important;
-  }
-
-  .show-in-portrait {
-    display: block !important;
-  }
-}
-
-.show-in-portrait {
-  display: none;
-}
-
-/*
- * Tiled film grain — sits above solid/gradient backgrounds, under foreground
- * content. No `background-attachment: fixed` here: that setting forces a full
- * repaint on every scroll frame (the browser re-computes the background
- * position relative to the viewport for every pixel scrolled). The viewport-
- * locked global grain is `html::before { position: fixed }` which IS
- * GPU-composited and scroll-free. This class is only used on opaque sections
- * (e.g. the dark column `absolute inset-0`) where normal tiling is correct.
- */
-.film-grain {
-  background-image: url('/textures/film-grain.png');
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  opacity: var(--grain-opacity);
-}
-
-@media (pointer: coarse) {
-  :root {
-    --grain-opacity: 0.15;
-  }
-}
-
-/* Contact signature: ink reads into the warm paper field (intro seam SVG is in-flow; contact uses multiply). */
-.signature-marker-on-paper {
-  mix-blend-mode: multiply;
 }
 
 /* Custom scrollbar */
@@ -150,18 +112,27 @@ body * {
   }
 
   /*
-   * The blanket 0.01ms reset above is for *finite* transitions (snap to end
-   * state). The brand/featured carousels are `infinite` loops, so 0.01ms makes
-   * them cycle thousands of times per second — i.e. moving absurdly fast. Pin
-   * them back to their normal, intended durations so the speed is capped at
-   * what everyone else sees.
+   * The blanket reset above is for finite transitions (snap to end state). The
+   * brand / featured carousels are infinite loops, so instead of cycling them
+   * thousands of times per second we hold them still. `MotionToggle` lets the
+   * visitor opt back in (`data-motion="running"`), at the normal speed.
    */
-  #brands .brand-marquee-track {
+  :root:not([data-motion="running"]) #brands .brand-marquee-track,
+  :root:not([data-motion="running"]) .featured-work-track {
+    animation-play-state: paused !important;
+  }
+  :root[data-motion="running"] #brands .brand-marquee-track {
     animation-duration: var(--brand-marquee-duration, 60s) !important;
   }
-  .featured-work-track {
+  :root[data-motion="running"] .featured-work-track {
     animation-duration: var(--featured-duration, 45s) !important;
   }
+}
+
+/* Motion toggle (MotionToggle.tsx): pause the loops for anyone. */
+:root[data-motion="paused"] #brands .brand-marquee-track,
+:root[data-motion="paused"] .featured-work-track {
+  animation-play-state: paused !important;
 }
 
 /* Scroll lock utility */
@@ -173,15 +144,6 @@ body * {
 /* Display font utility */
 .font-display {
   font-family: var(--font-display), system-ui, sans-serif;
-}
-
-/* Hide scrollbar for horizontal scroll containers */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
 }
 
 /* BrandMarquee — `--brand-marquee-duration` + `--brand-marquee-logo-gap` on `#brands` */

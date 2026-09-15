@@ -6,7 +6,7 @@ import {
   useMotionValueEvent,
   type MotionValue,
 } from 'framer-motion'
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import {
   introScrollIndicatorDelayMs,
   introScrollIndicatorHideProgress,
@@ -24,46 +24,40 @@ export default function IntroScrollIndicator({
   reduceMotion,
 }: IntroScrollIndicatorProps) {
   const [visible, setVisible] = useState(false)
-  const [eligible, setEligible] = useState(false)
-  const delayTimerRef = useRef<number | null>(null)
+  /** Set once the show delay has elapsed; scroll progress is ignored until then. */
+  const eligibleRef = useRef(false)
   const hasScheduledRef = useRef(false)
 
-  const syncVisibility = useCallback(
-    (p: number) => {
-      if (!eligible) return
-      setVisible(p <= introScrollIndicatorHideProgress)
-    },
-    [eligible],
-  )
-
-  useMotionValueEvent(scrollYProgress, 'change', syncVisibility)
-
-  useEffect(() => {
-    if (eligible) syncVisibility(scrollYProgress.get())
-  }, [eligible, scrollYProgress, syncVisibility])
+  useMotionValueEvent(scrollYProgress, 'change', (p) => {
+    if (!eligibleRef.current) return
+    setVisible(p <= introScrollIndicatorHideProgress)
+  })
 
   useEffect(() => {
     const v = videoRef.current
-    if (!v) return
+    let delayTimer: number | null = null
 
     const scheduleShow = () => {
       if (hasScheduledRef.current) return
       hasScheduledRef.current = true
-      delayTimerRef.current = window.setTimeout(() => {
-        setEligible(true)
+      delayTimer = window.setTimeout(() => {
+        delayTimer = null
+        eligibleRef.current = true
+        setVisible(scrollYProgress.get() <= introScrollIndicatorHideProgress)
       }, introScrollIndicatorDelayMs)
     }
 
+    // The hint must not depend on playback (the video sits on its poster while motion is paused):
+    // arm the delay from mount. `playing` stays as a second trigger; it is a no-op once scheduled.
+    scheduleShow()
     const onPlaying = () => scheduleShow()
-
-    v.addEventListener('playing', onPlaying)
-    if (!v.paused && !v.ended && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-      scheduleShow()
-    }
+    v?.addEventListener('playing', onPlaying)
 
     return () => {
-      v.removeEventListener('playing', onPlaying)
-      if (delayTimerRef.current != null) window.clearTimeout(delayTimerRef.current)
+      v?.removeEventListener('playing', onPlaying)
+      if (delayTimer != null) window.clearTimeout(delayTimer)
+      hasScheduledRef.current = false
+      eligibleRef.current = false
     }
   }, [videoRef, scrollYProgress])
 

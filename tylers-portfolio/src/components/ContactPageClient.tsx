@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useLayoutEffect, useState } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { bannerTypeChip } from "@/config/scrollBanner";
-import FilmGrain from "@/components/FilmGrain";
 import { cn } from "@/lib/utils";
 
 const CONTACT_EMAIL = "yddeul@gmail.com";
@@ -14,6 +18,23 @@ const TYPE_DURATION_MS = 1500;
 const SEP = " | ";
 const CONTACT_LINE = `${CONTACT_EMAIL}${SEP}${INSTAGRAM_LABEL}`;
 const EMAIL_LEN = CONTACT_EMAIL.length;
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onChange: () => void) {
+  const mq = window.matchMedia(REDUCED_MOTION_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function getReducedMotionSnapshot() {
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+// Server and first client render agree (no hydration mismatch); the live value lands right after.
+function getReducedMotionServerSnapshot() {
+  return false;
+}
 
 function contactLineParts(visible: number) {
   const v = Math.max(0, Math.min(visible, CONTACT_LINE.length));
@@ -75,23 +96,15 @@ function ExternalLinkIcon({ className }: { className?: string }) {
 
 export default function ContactPageClient() {
   const [copied, setCopied] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  const prefersReducedMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotionSnapshot,
+    getReducedMotionServerSnapshot,
   );
   const [lineChars, setLineChars] = useState(0);
   const { email, sep, insta } = contactLineParts(
     prefersReducedMotion ? CONTACT_LINE.length : lineChars,
   );
-
-  useLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const onChange = () => setPrefersReducedMotion(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   useLayoutEffect(() => {
     if (prefersReducedMotion) return;
@@ -120,20 +133,8 @@ export default function ContactPageClient() {
     } catch {}
   }, []);
 
-  const openInstagram = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
-      e.preventDefault();
-      const popup = window.open(INSTAGRAM_URL, "_blank", "noopener,noreferrer");
-      if (!popup) {
-        window.location.href = INSTAGRAM_URL;
-      }
-    },
-    [],
-  );
-
   return (
-    <main className="relative isolate min-h-screen overflow-visible bg-white text-black">
-      <FilmGrain className="absolute inset-0 z-[1]" />
+    <main id="main" className="relative isolate min-h-screen overflow-visible bg-white text-black">
       <section className="relative z-[2] mx-auto flex min-h-screen w-full max-w-[1400px] flex-col px-3 pt-10 pb-24 min-[420px]:px-5 sm:px-6 md:pt-14">
         <div className="flex items-center justify-between gap-4">
           <Link
@@ -189,7 +190,6 @@ export default function ContactPageClient() {
               href={INSTAGRAM_URL}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={openInstagram}
               className="group inline-flex max-w-full shrink-0 items-center text-inherit transition"
               tabIndex={insta.length < INSTAGRAM_LABEL.length ? -1 : undefined}
             >

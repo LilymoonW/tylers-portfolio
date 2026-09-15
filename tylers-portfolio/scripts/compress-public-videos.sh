@@ -42,9 +42,11 @@ has_audio() {
 # Preset: slower = better compression at same CRF (encode takes longer).
 CRF="${VIDEO_CRF:-22}"
 PRESET="${VIDEO_PRESET:-slow}"
+# Optional: cap the longest side (e.g. VIDEO_MAX_DIM=1080). Never upscales; keeps aspect and even dimensions.
+MAX_DIM="${VIDEO_MAX_DIM:-}"
 
 echo "Video dir: ${VIDEO_DIR}"
-echo "Using libx264 CRF=${CRF} preset=${PRESET} (override: VIDEO_CRF=23 VIDEO_PRESET=medium $0)"
+echo "Using libx264 CRF=${CRF} preset=${PRESET}${MAX_DIM:+ max-dim=${MAX_DIM}} (override: VIDEO_CRF=23 VIDEO_PRESET=medium VIDEO_MAX_DIM=1080 $0)"
 echo ""
 
 shopt -s nullglob
@@ -57,6 +59,11 @@ for src in "${VIDEO_DIR}"/*.mp4; do
 
   echo "── ${base}"
 
+  scale_args=()
+  if [[ -n "$MAX_DIM" ]]; then
+    scale_args=(-vf "scale='min(${MAX_DIM},iw)':'min(${MAX_DIM},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2")
+  fi
+
   if has_audio "$src"; then
     audio_args=(-c:a aac -b:a 128k)
   else
@@ -66,6 +73,7 @@ for src in "${VIDEO_DIR}"/*.mp4; do
   if ! ffmpeg -hide_banner -loglevel warning -stats \
     -i "$src" \
     -map_metadata 0 \
+    "${scale_args[@]}" \
     -c:v libx264 -crf "${CRF}" -preset "${PRESET}" -pix_fmt yuv420p \
     -movflags +faststart \
     "${audio_args[@]}" \

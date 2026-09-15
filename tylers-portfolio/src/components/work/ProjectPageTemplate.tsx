@@ -20,28 +20,24 @@ function chunkWordsByTwo(text: string): string[] {
   return chunks;
 }
 
-/** Exactly two lines for narrow / portrait viewports (balanced words unless a title has a fixed break). */
-function titlePortraitTwoLines(
-  titleUpper: string,
-  titleNeedsBreak: boolean,
-  titleBeforeBreak: string,
-  titleAfterBreak: string,
-  roadsLeadNeedsBreak: boolean,
-  roadsLeadBefore: string,
-  roadsLeadAfter: string,
-): [string, string] {
-  if (titleNeedsBreak) {
-    return [`${titleBeforeBreak} 32`.trim(), `TEAM ${titleAfterBreak}`.trim()];
-  }
-  if (roadsLeadNeedsBreak) {
-    return [roadsLeadBefore, roadsLeadAfter];
-  }
+/** Exactly two lines for narrow / portrait viewports: a balanced word split. */
+function titlePortraitTwoLines(titleUpper: string): [string, string] {
   const words = titleUpper.trim().split(/\s+/).filter(Boolean);
   if (words.length <= 1) {
     return [words[0] ?? titleUpper, ""];
   }
   const mid = Math.ceil(words.length / 2);
   return [words.slice(0, mid).join(" "), words.slice(mid).join(" ")];
+}
+
+/** `/video/<name>.mp4` → `/video/posters/<name>.jpg`; anything else keeps `fallback`. */
+function posterForVideoSrc(videoSrc: string, fallback: string): string {
+  const prefix = "/video/";
+  if (!videoSrc.startsWith(prefix)) return fallback;
+  const file = videoSrc.slice(prefix.length).split(/[?#]/)[0] ?? "";
+  const basename = file.replace(/\.[^./]+$/, "");
+  if (!basename || basename.includes("/")) return fallback;
+  return `${prefix}posters/${basename}.jpg`;
 }
 
 function TemplateSection({
@@ -53,7 +49,7 @@ function TemplateSection({
 }) {
   return (
     <section className="rounded-2xl border border-black/10 bg-black/[0.02] p-5 md:p-7">
-      <p className={cn(bannerTypeChip, "mb-4 uppercase text-black/45")}>
+      <p className={cn(bannerTypeChip, "mb-4 uppercase text-black/60")}>
         {label}
       </p>
       {children}
@@ -63,40 +59,22 @@ function TemplateSection({
 
 export default function ProjectPageTemplate({ project }: { project: Project }) {
   const titleUpper = project.title.toUpperCase();
-  const breakToken = " 32 TEAM ";
-  const titleNeedsBreak = titleUpper.includes(breakToken);
-  const [titleBeforeBreak, titleAfterBreak] = titleNeedsBreak
-    ? titleUpper.split(breakToken)
-    : [titleUpper, ""];
+  const explicitLines = project.titleLines
+    ?.map((line) => line.trim().toUpperCase())
+    .filter((line) => line.length > 0);
 
-  const roadsLeadIdx =
-    project.id === "All Roads Lead Here" ? titleUpper.indexOf(" LEAD ") : -1;
-  const roadsLeadNeedsBreak = roadsLeadIdx > 0;
-  const roadsLeadBefore = roadsLeadNeedsBreak
-    ? titleUpper.slice(0, roadsLeadIdx).trimEnd()
-    : "";
-  const roadsLeadAfter = roadsLeadNeedsBreak
-    ? titleUpper.slice(roadsLeadIdx).trimStart()
-    : "";
-
-  const titleLineGroups: string[][] = titleNeedsBreak
-    ? [
-        chunkWordsByTwo(`${titleBeforeBreak} 32`),
-        chunkWordsByTwo(`TEAM ${titleAfterBreak}`),
-      ]
-    : roadsLeadNeedsBreak
-      ? [chunkWordsByTwo(roadsLeadBefore), chunkWordsByTwo(roadsLeadAfter)]
+  /** Landscape rows: explicit `titleLines` (each row its own spaced group) or two words per row. */
+  const titleLineGroups: string[][] =
+    explicitLines && explicitLines.length > 0
+      ? explicitLines.map((line) => [line])
       : [chunkWordsByTwo(titleUpper)];
 
-  const [portraitLine1, portraitLine2] = titlePortraitTwoLines(
-    titleUpper,
-    titleNeedsBreak,
-    titleBeforeBreak,
-    titleAfterBreak,
-    roadsLeadNeedsBreak,
-    roadsLeadBefore,
-    roadsLeadAfter,
-  );
+  const [portraitLine1, portraitLine2]: [string, string] =
+    explicitLines && explicitLines.length === 2
+      ? [explicitLines[0], explicitLines[1]]
+      : explicitLines && explicitLines.length === 1
+        ? [explicitLines[0], ""]
+        : titlePortraitTwoLines(titleUpper);
 
   const socialEmbed =
     !project.videoSrc && project.embedUrl
@@ -105,7 +83,7 @@ export default function ProjectPageTemplate({ project }: { project: Project }) {
   const mobileExternalFallback = project.id === "PCA All Star Game";
 
   return (
-    <main className="project-page-uppercase relative isolate mx-auto min-h-screen w-full max-w-[1400px] px-6 py-12 md:py-16">
+    <main id="main" className="project-page-uppercase relative isolate mx-auto min-h-screen w-full max-w-[1400px] px-6 py-12 md:py-16">
       <header className="mb-10">
         <div className="mb-6 flex justify-center">
           <Link
@@ -163,7 +141,8 @@ export default function ProjectPageTemplate({ project }: { project: Project }) {
               >
                 <ProjectVideoPlayer
                   src={project.videoSrc}
-                  poster={project.thumbnail}
+                  title={project.title}
+                  poster={posterForVideoSrc(project.videoSrc, project.thumbnail)}
                 />
               </div>
             ) : socialEmbed ? (
@@ -297,7 +276,7 @@ export default function ProjectPageTemplate({ project }: { project: Project }) {
                   "relative flex w-full max-w-[680px] items-center justify-center overflow-hidden rounded-2xl border border-black/10 bg-black/[0.04] aspect-square",
                 )}
               >
-                <p className="text-center text-xs text-black/45 md:text-sm">
+                <p className="text-center text-xs text-black/60 md:text-sm">
                   VIDEO GOES HERE
                 </p>
               </div>
@@ -319,7 +298,7 @@ export default function ProjectPageTemplate({ project }: { project: Project }) {
             )}
           >
             <div className="rounded-xl border border-black/10 bg-white/65 p-3">
-              <p className={cn(bannerTypeChip, "uppercase text-black/45")}>
+              <p className={cn(bannerTypeChip, "uppercase text-black/60")}>
                 Brand
               </p>
               <p className="mt-1 text-sm uppercase text-black md:text-base">
@@ -327,7 +306,7 @@ export default function ProjectPageTemplate({ project }: { project: Project }) {
               </p>
             </div>
             <div className="rounded-xl border border-black/10 bg-white/65 p-3">
-              <p className={cn(bannerTypeChip, "uppercase text-black/45")}>
+              <p className={cn(bannerTypeChip, "uppercase text-black/60")}>
                 Year
               </p>
               <p className="mt-1 text-sm uppercase text-black md:text-base">
@@ -335,7 +314,7 @@ export default function ProjectPageTemplate({ project }: { project: Project }) {
               </p>
             </div>
             <div className="rounded-xl border border-black/10 bg-white/65 p-3">
-              <p className={cn(bannerTypeChip, "uppercase text-black/45")}>
+              <p className={cn(bannerTypeChip, "uppercase text-black/60")}>
                 Role
               </p>
               <p className="mt-1 text-sm uppercase text-black md:text-base">
@@ -344,7 +323,7 @@ export default function ProjectPageTemplate({ project }: { project: Project }) {
             </div>
             {!project.hideProjectViews ? (
               <div className="rounded-xl border border-black/10 bg-white/65 p-3">
-                <p className={cn(bannerTypeChip, "uppercase text-black/45")}>
+                <p className={cn(bannerTypeChip, "uppercase text-black/60")}>
                   Views
                 </p>
                 <p className="mt-1 text-sm uppercase text-black md:text-base">

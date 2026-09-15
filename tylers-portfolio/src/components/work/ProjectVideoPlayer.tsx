@@ -6,9 +6,16 @@ type ProjectVideoPlayerProps = {
   src: string
   poster?: string
   className?: string
+  /** Accessible name for the `<video>` (e.g. the project title). */
+  title?: string
 }
 
-export default function ProjectVideoPlayer({ src, poster, className }: ProjectVideoPlayerProps) {
+export default function ProjectVideoPlayer({
+  src,
+  poster,
+  className,
+  title = 'Project video',
+}: ProjectVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isPlaying, setIsPlaying] = useState(true)
@@ -84,11 +91,23 @@ export default function ProjectVideoPlayer({ src, poster, className }: ProjectVi
   const toggleFullscreen = async () => {
     const container = containerRef.current
     if (!container) return
-    if (document.fullscreenElement) {
-      await document.exitFullscreen()
-      return
+    try {
+      if (document.fullscreenElement) {
+        if (typeof document.exitFullscreen === 'function') await document.exitFullscreen()
+        return
+      }
+      if (typeof container.requestFullscreen === 'function') {
+        await container.requestFullscreen()
+        return
+      }
+      // iPhone Safari has no element Fullscreen API; only the <video> itself can go fullscreen.
+      const video = videoRef.current as
+        | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
+        | null
+      video?.webkitEnterFullscreen?.()
+    } catch {
+      // Fullscreen can be refused (unsupported, no user activation, embedded context); stay inline.
     }
-    await container.requestFullscreen()
   }
 
   return (
@@ -96,6 +115,7 @@ export default function ProjectVideoPlayer({ src, poster, className }: ProjectVi
       <video
         key={src}
         ref={videoRef}
+        aria-label={title}
         poster={poster}
         autoPlay
         muted

@@ -2,6 +2,11 @@ export interface Project {
   /** Matches `title`; used for `#portfolio/` deep links (encoded in the URL hash). */
   id: string
   title: string
+  /**
+   * Explicit title rows for `/portfolio/[projectId]` — each entry is one justified row, rendered as
+   * its own spaced line group. Omit to auto-chunk the title two words per row.
+   */
+  titleLines?: string[]
   duration: string
   year: number
   role: string
@@ -52,7 +57,6 @@ export interface Brand {
 export interface Tool {
   id: string
   name: string
-  iconSrc: string
   category: string
 }
 

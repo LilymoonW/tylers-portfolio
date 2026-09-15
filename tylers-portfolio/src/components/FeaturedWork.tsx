@@ -90,7 +90,6 @@ export default function FeaturedWork({ projects }: { projects: Project[] }) {
             <CarouselCard
               key={`${project.id}-${i}`}
               project={project}
-              priorityThumbnail={i === 0}
               sizes="(max-width: 768px) 220px, 280px"
             />
           ))}
@@ -102,11 +101,9 @@ export default function FeaturedWork({ projects }: { projects: Project[] }) {
 
 function CarouselCard({
   project,
-  priorityThumbnail = false,
   sizes,
 }: {
   project: Project;
-  priorityThumbnail?: boolean;
   sizes?: string;
 }) {
   const { openModal } = useVideoModal();
@@ -115,14 +112,13 @@ function CarouselCard({
   const cardInner = (
     <div
       className={cn(
-        "group relative flex w-full flex-col justify-end overflow-hidden rounded-xl border border-white/5 p-4 shadow-xl transition-all duration-500",
+        "group relative flex w-full flex-col justify-end overflow-hidden rounded-xl border border-white/5 p-4 shadow-xl transition-[transform,box-shadow] duration-500",
       )}
       style={{ aspectRatio: "9/16" }}
     >
       <ProjectThumbnailMedia
         src={project.thumbnail}
         zoom={project.thumbnailZoom}
-        priority={priorityThumbnail}
         sizes={sizes}
       />
       <div
@@ -141,7 +137,7 @@ function CarouselCard({
       <div
         className={cn(
           bannerTypeMetaLight,
-          "absolute top-3 right-3 z-10 rounded-full bg-black/60 px-2 py-1 backdrop-blur-sm",
+          "absolute top-3 right-3 z-10 rounded-full bg-black/70 px-2 py-1",
         )}
       >
         {formatNumber(project.viewCount, "abbreviated")} views
@@ -149,7 +145,7 @@ function CarouselCard({
 
       {/* Play / external affordance on hover */}
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 group-hover:backdrop-blur-md">
           {cardHref ? (
             <svg
               width="20"

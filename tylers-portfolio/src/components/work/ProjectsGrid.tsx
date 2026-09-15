@@ -16,7 +16,7 @@ interface ProjectsGridProps {
 const TILE_EASE = "[transition-timing-function:cubic-bezier(0.22,1,0.36,1)]";
 
 /**
- * Responsive grid of square project tiles (5 columns).
+ * Responsive grid of square project tiles (3 columns under 640px, 5 above).
  * Hover/focus uses CSS only — avoids per-character Framer subtrees that were very heavy with ~40+ tiles.
  */
 export default function ProjectsGrid({
@@ -27,7 +27,12 @@ export default function ProjectsGrid({
   const buildHref =
     href ?? ((p: Project) => `/portfolio/${encodeURIComponent(p.id)}`);
   return (
-    <ul className={cn("grid list-none grid-cols-5 gap-0 p-0", className)}>
+    <ul
+      className={cn(
+        "grid list-none grid-cols-3 gap-0 p-0 sm:grid-cols-5",
+        className,
+      )}
+    >
       {projects.map((project) => (
         <li
           key={project.id}
@@ -56,7 +61,7 @@ function ProjectTile({ project, href }: { project: Project; href: string }) {
         src={project.thumbnail}
         zoom={project.thumbnailZoom}
         objectPosition={project.thumbnailObjectPosition}
-        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
+        sizes="(max-width: 640px) 33vw, 20vw"
       />
 
       <div
@@ -68,7 +73,7 @@ function ProjectTile({ project, href }: { project: Project; href: string }) {
       />
 
       <div className="pointer-events-none absolute inset-0 z-[2] flex items-end p-2 md:p-2.5">
-        <h3
+        <h2
           className={cn(
             bannerTypeBase,
             "max-w-full translate-y-1 text-left font-display text-[11px] font-bold italic uppercase leading-[1.05] tracking-[-0.01em] text-white opacity-0 transition-[opacity,transform] duration-200 motion-reduce:duration-0 md:text-xs",
@@ -78,7 +83,7 @@ function ProjectTile({ project, href }: { project: Project; href: string }) {
           )}
         >
           {title}
-        </h3>
+        </h2>
       </div>
 
       <span
