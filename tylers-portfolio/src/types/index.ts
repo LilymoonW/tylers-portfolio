@@ -48,8 +48,6 @@ export interface Brand {
   name: string
   logoSrc: string
   url?: string
-  /** Multiplier for marquee slot height + image max height (default 1). Slot width stays the global logo column width. */
-  logoScale?: number
   /** CSS `brightness()` multiplier on the raster (1 = default; 0.8 ≈ 20% darker). */
   logoBrightness?: number
 }
@@ -60,26 +58,3 @@ export interface Tool {
   category: string
 }
 
-export interface Stat {
-  id: string
-  label: string
-  value: number
-  suffix?: string
-  prefix?: string
-  format: 'number' | 'abbreviated'
-  displayValue?: string
-}
-
-export interface NavSection {
-  id: string
-  label: string
-}
-
-export interface ParallaxLayerConfig {
-  defaultSrc: string
-  hoverSrc: string
-  speed: number
-  position: { x: string; y: string }
-  zIndex: number
-  size: { width: string; height: string }
-}

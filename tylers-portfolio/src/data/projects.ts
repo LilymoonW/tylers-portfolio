@@ -664,41 +664,4 @@ export const projects: Project[] = [
     featured: false,
     aspectRatio: '9:16',
   },
-  ...buildPlaceholders(),
 ]
-
-/**
- * Placeholder projects that fill the 3D wheel until finalized cuts are slotted
- * in. They all share the generic `/placeholder.svg` thumbnail so the wheel can
- * detect them and render a generated gradient cover in its place. Brand / tag /
- * year values are intentionally varied so the SORT filters still read as a
- * meaningful CMS even before real thumbnails land.
- */
-function buildPlaceholders() {
-  const seeds: Array<{
-    title: string
-    brand: string
-    tags: string[]
-    year: number
-    role: string
-    duration: string
-    tools: string[]
-  }> = []
-
-  return seeds.map<Project>((seed, i) => ({
-    id: seed.title,
-    title: seed.title,
-    duration: seed.duration,
-    year: seed.year,
-    role: seed.role,
-    bio: `Add ${seed.title} project bio here.`,
-    thumbnail: '/images/thumbnails/placeholder.svg',
-    embedUrl: `https://player.vimeo.com/video/placeholder-${i + 7}`,
-    tags: seed.tags,
-    viewCount: 0,
-    toolsUsed: seed.tools,
-    brand: seed.brand,
-    featured: false,
-    aspectRatio: '9:16',
-  }))
-}

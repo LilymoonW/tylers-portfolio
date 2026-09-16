@@ -78,6 +78,3 @@ export const brandMarqueeBottomRow: Brand[] = [
     // url: 'https://www.wasserman.com',
   },
 ]
-
-/** All marquee brands (top then bottom) — useful if you need one list elsewhere. */
-export const brands: Brand[] = [...brandMarqueeTopRow, ...brandMarqueeBottomRow]

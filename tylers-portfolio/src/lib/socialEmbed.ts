@@ -29,7 +29,7 @@ function tiktokEmbedFromUrl(url: URL): string | null {
   return `https://www.tiktok.com/embed/v2/${m[1]}`
 }
 
-export type SocialEmbed = {
+type SocialEmbed = {
   platform: 'instagram' | 'tiktok'
   src: string
 }

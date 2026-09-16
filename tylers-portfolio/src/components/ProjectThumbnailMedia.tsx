@@ -17,10 +17,6 @@ type ProjectThumbnailMediaProps = {
   objectPosition?: string
   /** Forwarded to `next/image`'s `sizes` so the grid can request smaller tiles. */
   sizes?: string
-  /** Mark true for the primary above-the-fold thumbnail to avoid LCP lazy-load hints. */
-  priority?: boolean
-  /** Explicit loading behavior when not priority. */
-  loading?: 'lazy' | 'eager'
 }
 
 /**
@@ -32,8 +28,6 @@ export function ProjectThumbnailMedia({
   zoom = 1,
   objectPosition,
   sizes,
-  priority = false,
-  loading,
 }: ProjectThumbnailMediaProps) {
   const [failed, setFailed] = useState(false)
   const z = Number.isFinite(zoom) && zoom > 1 ? zoom : 1
@@ -48,8 +42,7 @@ export function ProjectThumbnailMedia({
       alt=""
       fill
       sizes={sizes ?? '(max-width: 768px) 100vw, 50vw'}
-      priority={priority}
-      loading={priority ? undefined : (loading ?? 'lazy')}
+      loading="lazy"
       onError={() => setFailed(true)}
       className={cn(
         'pointer-events-none absolute inset-0 z-0 h-full w-full object-cover',

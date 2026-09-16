@@ -13,6 +13,4 @@ const interVariable = localFont({
   display: "swap",
 });
 
-export const displayFont = interVariable;
-export const bodyFont = interVariable;
 export const fontClassNames = interVariable.variable;

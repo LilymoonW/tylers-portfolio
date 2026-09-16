@@ -36,7 +36,7 @@ function getServerSnapshot(): MotionState {
   return 'running'
 }
 
-export function setMotionState(next: MotionState) {
+function setMotionState(next: MotionState) {
   document.documentElement.dataset.motion = next
   window.dispatchEvent(new Event(MOTION_EVENT))
 }

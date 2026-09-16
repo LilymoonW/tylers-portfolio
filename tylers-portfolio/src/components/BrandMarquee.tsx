@@ -17,8 +17,7 @@ function BrandLogoSlot({
   logoMaxHeightPx: number;
   logoSlotMaxWidthPx: number;
 }) {
-  const scale = brand.logoScale ?? 1;
-  const slotH = Math.round(logoMaxHeightPx * scale);
+  const slotH = logoMaxHeightPx;
   const slotW = logoSlotMaxWidthPx;
   const brightness = brand.logoBrightness;
 

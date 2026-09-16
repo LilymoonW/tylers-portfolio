@@ -43,7 +43,6 @@ const POINTER_DRIFT_Y = 0.02
 type Props = {
   /** Height of the paper → black band. */
   heightVh?: number
-  colors?: Partial<typeof GLOW_COLORS>
 }
 
 /**
@@ -54,7 +53,7 @@ type Props = {
  * per-frame work is a transform + opacity on a static texture. Scroll drives scale and
  * opacity; on desktop the pointer nudges it through a spring.
  */
-export default function BrandsGradientBridge({ heightVh = 85, colors }: Props) {
+export default function BrandsGradientBridge({ heightVh = 85 }: Props) {
   const ref = useRef<HTMLElement | null>(null)
   const isActive = useInViewActive(ref, { rootMargin: '260px 0px', threshold: 0 })
   const reduceMotion = useReducedMotion()
@@ -90,7 +89,7 @@ export default function BrandsGradientBridge({ heightVh = 85, colors }: Props) {
     return () => window.removeEventListener('pointermove', onMove)
   }, [isActive, reduceMotion, pointerX, pointerY])
 
-  const c = { ...GLOW_COLORS, ...colors }
+  const c = GLOW_COLORS
 
   return (
     <section

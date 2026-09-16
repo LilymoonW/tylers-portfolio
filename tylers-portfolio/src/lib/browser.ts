@@ -10,8 +10,3 @@ export function isSafariBrowser(): boolean {
   return true
 }
 
-/** Chrome, Edge, Opera, Brave, etc. — useful for tuning GPU-heavy effects separately from Safari. */
-export function isChromiumBasedBrowser(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return /chrome|chromium|crios|edg\//i.test(navigator.userAgent)
-}

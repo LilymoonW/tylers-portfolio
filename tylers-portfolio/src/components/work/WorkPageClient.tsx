@@ -570,7 +570,7 @@ function FilterRow({
         <FilterChip
           key={value}
           value={value}
-          label={label === "Tag" ? value.replace(/-/g, " ") : value}
+          label={value}
           selected={selected === value}
           onSelect={onChange}
         />

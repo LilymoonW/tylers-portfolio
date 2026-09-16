@@ -205,10 +205,6 @@ function blinkFrameIndexFromBannerReveal(p: number): 0 | 1 | 2 | null {
   return Math.min(2, Math.floor(shut * 3)) as 0 | 1 | 2
 }
 
-export type AnimatedEyesHandle = {
-  svg: SVGSVGElement | null
-}
-
 type AnimatedEyesProps = {
   className?: string
   ariaLabel?: string

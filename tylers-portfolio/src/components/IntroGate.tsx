@@ -309,7 +309,6 @@ export default function IntroGate() {
         className="sticky top-0 h-[100dvh] min-h-0 w-full overflow-hidden"
       >
         <motion.div
-          data-intro-video-layer
           className="relative isolate z-10 h-full min-h-full w-full min-w-full max-w-none overflow-hidden rounded-none bg-black shadow-none"
           style={{ scale, transformOrigin: "50% 50%" }}
         >

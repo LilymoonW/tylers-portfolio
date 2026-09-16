@@ -8,9 +8,6 @@ import { cn } from "@/lib/utils";
 
 interface ProjectsGridProps {
   projects: Project[];
-  /** Route each tile to this builder (defaults to the detail page under `/portfolio/...`). */
-  href?: (project: Project) => string;
-  className?: string;
 }
 
 const TILE_EASE = "[transition-timing-function:cubic-bezier(0.22,1,0.36,1)]";
@@ -19,18 +16,12 @@ const TILE_EASE = "[transition-timing-function:cubic-bezier(0.22,1,0.36,1)]";
  * Responsive grid of square project tiles (3 columns under 640px, 5 above).
  * Hover/focus uses CSS only — avoids per-character Framer subtrees that were very heavy with ~40+ tiles.
  */
-export default function ProjectsGrid({
-  projects,
-  href,
-  className,
-}: ProjectsGridProps) {
-  const buildHref =
-    href ?? ((p: Project) => `/portfolio/${encodeURIComponent(p.id)}`);
+export default function ProjectsGrid({ projects }: ProjectsGridProps) {
+  const buildHref = (p: Project) => `/portfolio/${encodeURIComponent(p.id)}`;
   return (
     <ul
       className={cn(
-        "grid list-none grid-cols-3 gap-0 p-0 sm:grid-cols-5",
-        className,
+        "grid list-none grid-cols-3 gap-0 p-0 sm:grid-cols-5"
       )}
     >
       {projects.map((project) => (
