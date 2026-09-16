@@ -13,20 +13,63 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   introAllWorkLabel,
   introContactLabel,
   introSideCaptionBelowVideoGapPx,
   introSideCaptionScroll,
+  introVideoBottomForScale,
   introVideoScaleForProgress,
 } from "@/config/introMotion";
 import { bannerTypeBase } from "@/config/scrollBanner";
 import IntroScrollIndicator from "@/components/IntroScrollIndicator";
+import {
+  getMotionState,
+  onMotionStateChange,
+} from "@/components/MotionToggle";
 import { useIntroScroll } from "@/components/providers/IntroScrollProvider";
-import { useLenis } from "@/components/providers/SmoothScrollProvider";
 import { useInViewActive } from "@/hooks/useInViewActive";
 import { cn } from "@/lib/utils";
+
+const INTRO_VIDEO_SRC = "/video/yoon-front-vid.mp4#t=0.001";
+const INTRO_VIDEO_POSTER = "/video/posters/yoon-front-vid.jpg";
+/** How many `pause` events may trigger a `play()` retry before we stop fighting the browser. */
+const MAX_PAUSE_RETRIES = 3;
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onChange: () => void) {
+  const mq = window.matchMedia(REDUCED_MOTION_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function getReducedMotion() {
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+function getServerReducedMotion() {
+  return false;
+}
+
+/**
+ * The intro video only runs while the site-wide motion switch is on. `getMotionState()` already
+ * defaults to `'paused'` for `prefers-reduced-motion`, and `MotionToggle` lets those visitors opt in.
+ */
+function introMotionAllowed() {
+  return getMotionState() === "running";
+}
+
+/** `play()` rejected because the browser wants a user gesture first — retrying cannot help. */
+function isNotAllowedError(err: unknown) {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { name?: unknown }).name === "NotAllowedError"
+  );
+}
 
 function captionSliceForProgress(
   p: number,
@@ -43,7 +86,6 @@ function captionSliceForProgress(
 }
 
 export default function IntroGate() {
-  const lenis = useLenis();
   const { introSectionRef, scrollYProgress } = useIntroScroll();
   const stickyRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -54,12 +96,17 @@ export default function IntroGate() {
   const scale = useTransform(scrollYProgress, introVideoScaleForProgress);
 
   const vw = useMotionValue(0);
+  /** Sticky box height (px): the video layer fills it before `scale` is applied. */
+  const vh = useMotionValue(0);
   useLayoutEffect(() => {
-    const set = () => vw.set(window.innerWidth);
+    const set = () => {
+      vw.set(window.innerWidth);
+      vh.set(stickyRef.current?.clientHeight || window.innerHeight);
+    };
     set();
     window.addEventListener("resize", set);
     return () => window.removeEventListener("resize", set);
-  }, [vw]);
+  }, [vw, vh]);
 
   const sideInsetPx = useTransform([scale, vw], ([s, w]) => {
     const sc = typeof s === "number" ? s : 1;
@@ -67,14 +114,20 @@ export default function IntroGate() {
     return Math.max(0, ((1 - sc) / 2) * width);
   });
 
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useLayoutEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const apply = () => setReduceMotion(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
+  /** Captions hang just under the scaled video: its bottom edge is `(1 + s) / 2 * H` from the box top. */
+  const sideCaptionsY = useTransform([scale, vh], ([s, h]) => {
+    const sc = typeof s === "number" ? s : 1;
+    const height = typeof h === "number" ? h : 0;
+    return (
+      introVideoBottomForScale(sc, height) + introSideCaptionBelowVideoGapPx
+    );
+  });
+
+  const reduceMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotion,
+    getServerReducedMotion,
+  );
 
   const [allWorkText, setAllWorkText] = useState("");
   const [contactText, setContactText] = useState("");
@@ -103,59 +156,22 @@ export default function IntroGate() {
     return () => cancelAnimationFrame(id);
   }, [scrollYProgress, syncSideCaptions]);
 
-  const [sideCaptionsTopPx, setSideCaptionsTopPx] = useState<number | null>(
-    null,
-  );
-  const measureSideCaptionsTop = useCallback(() => {
-    const sticky = stickyRef.current;
-    const video = document.querySelector("[data-intro-video-layer]");
-    if (!sticky || !video || !(video instanceof HTMLElement)) return;
-    const stickyRect = sticky.getBoundingClientRect();
-    const videoRect = video.getBoundingClientRect();
-    const next = Math.round(
-      videoRect.bottom - stickyRect.top + introSideCaptionBelowVideoGapPx,
-    );
-    setSideCaptionsTopPx((prev) =>
-      prev != null && Math.abs(prev - next) < 1 ? prev : next,
-    );
-  }, []);
-
-  useLayoutEffect(() => {
-    measureSideCaptionsTop();
-    window.addEventListener("resize", measureSideCaptionsTop);
-    return () => {
-      window.removeEventListener("resize", measureSideCaptionsTop);
-    };
-  }, [measureSideCaptionsTop]);
-
-  useMotionValueEvent(scrollYProgress, "change", (p) => {
-    syncSideCaptions(p);
-    measureSideCaptionsTop();
-  });
-
-  /** Lenis smooth-scroll can decouple rAF timing from Framer’s internal scroll reads — resample here. */
-  useEffect(() => {
-    if (!lenis) return;
-    const onLenisScroll = () => {
-      syncSideCaptions(scrollYProgress.get());
-      measureSideCaptionsTop();
-    };
-    lenis.on("scroll", onLenisScroll);
-    return () => {
-      lenis.off("scroll", onLenisScroll);
-    };
-  }, [lenis, measureSideCaptionsTop, scrollYProgress, syncSideCaptions]);
+  useMotionValueEvent(scrollYProgress, "change", syncSideCaptions);
 
   useLayoutEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     v.muted = true;
     v.defaultMuted = true;
-    v.autoplay = true;
     v.playsInline = true;
-    v.setAttribute("autoplay", "");
     v.setAttribute("playsinline", "");
     v.setAttribute("webkit-playsinline", "true");
+    // Autoplay is opted into here rather than in the markup so the browser never starts the
+    // video on its own for visitors whose motion is paused — they keep the poster instead.
+    if (introMotionAllowed()) {
+      v.autoplay = true;
+      v.setAttribute("autoplay", "");
+    }
   }, []);
 
   useEffect(() => {
@@ -168,15 +184,22 @@ export default function IntroGate() {
     }
 
     let destroyed = false;
+    let autoplayBlocked = false;
+    let pauseRetries = 0;
+
     const tryPlay = () => {
-      if (destroyed) return;
+      if (destroyed || autoplayBlocked) return;
       if (document.visibilityState !== "visible") return;
+      if (!introMotionAllowed()) return;
       v.muted = true;
       v.defaultMuted = true;
       requestAnimationFrame(() => {
-        if (destroyed) return;
+        if (destroyed || autoplayBlocked) return;
         if (!v.paused) return;
-        void v.play().catch(() => {});
+        if (!introMotionAllowed()) return;
+        v.play().catch((err: unknown) => {
+          if (isNotAllowedError(err)) autoplayBlocked = true;
+        });
       });
     };
 
@@ -199,7 +222,6 @@ export default function IntroGate() {
     // Mobile Safari/Chrome can pause at frame 0 right after reload.
     // Retry briefly while the intro is active to force the first play state.
     const playWatchdogId = window.setInterval(() => {
-      if (!isActive) return;
       if (v.paused && !v.ended) tryPlay();
     }, 220);
     const stopWatchdogId = window.setTimeout(() => {
@@ -207,15 +229,33 @@ export default function IntroGate() {
     }, 2200);
 
     const onPause = () => {
-      if (!isActive) return;
-      if (v.ended) return;
+      if (destroyed || v.ended) return;
+      // Paused on purpose (motion switch) — leave it alone.
+      if (!introMotionAllowed()) return;
+      if (pauseRetries >= MAX_PAUSE_RETRIES) return;
       if (v.currentTime <= 0.08 || document.visibilityState === "visible") {
+        pauseRetries += 1;
         tryPlay();
       }
     };
     v.addEventListener("pause", onPause);
 
-    if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    // Site-wide motion switch: stop on 'paused', resume on 'running'.
+    const unsubscribeMotion = onMotionStateChange((state) => {
+      if (destroyed) return;
+      if (state === "paused") {
+        if (!v.paused) v.pause();
+        return;
+      }
+      // Flipping the switch is a user gesture, so an earlier NotAllowedError no longer applies.
+      autoplayBlocked = false;
+      pauseRetries = 0;
+      tryPlay();
+    });
+
+    if (!introMotionAllowed()) {
+      if (!v.paused) v.pause();
+    } else if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       tryPlay();
     }
 
@@ -223,6 +263,7 @@ export default function IntroGate() {
       destroyed = true;
       window.clearInterval(playWatchdogId);
       window.clearTimeout(stopWatchdogId);
+      unsubscribeMotion();
       v.removeEventListener("pause", onPause);
       v.removeEventListener("loadeddata", onReady);
       v.removeEventListener("canplay", onReady);
@@ -245,8 +286,8 @@ export default function IntroGate() {
         >
           <video
             ref={videoRef}
-            src="/video/yoon-front-vid.mp4#t=0.001"
-            autoPlay
+            src={INTRO_VIDEO_SRC}
+            poster={INTRO_VIDEO_POSTER}
             muted
             playsInline
             preload="metadata"
@@ -263,23 +304,14 @@ export default function IntroGate() {
 
         <motion.div
           className={cn(
-            "pointer-events-none absolute inset-x-0 z-20 flex flex-col items-start gap-0 will-change-transform",
+            "pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col items-start gap-0 will-change-transform",
             "landscape:flex-row landscape:justify-between landscape:gap-4",
           )}
-          style={
-            sideCaptionsTopPx == null
-              ? {
-                  bottom: "2rem",
-                  paddingLeft: sideInsetPx,
-                  paddingRight: sideInsetPx,
-                }
-              : {
-                  top: 0,
-                  y: sideCaptionsTopPx,
-                  paddingLeft: sideInsetPx,
-                  paddingRight: sideInsetPx,
-                }
-          }
+          style={{
+            y: sideCaptionsY,
+            paddingLeft: sideInsetPx,
+            paddingRight: sideInsetPx,
+          }}
         >
           <Link
             href="/portfolio"
@@ -288,9 +320,10 @@ export default function IntroGate() {
               "pointer-events-auto min-w-0 shrink text-left leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl",
               "hover:underline underline-offset-4 decoration-1",
             )}
-            aria-label="Go to portfolio page"
+            aria-label="All work"
+            tabIndex={allWorkText === "" ? -1 : undefined}
           >
-            <span aria-live="polite">{allWorkText}</span>
+            <span>{allWorkText}</span>
           </Link>
           <Link
             href="/contact"
@@ -299,9 +332,10 @@ export default function IntroGate() {
               "pointer-events-auto min-w-0 shrink text-left leading-none text-ink tracking-tight text-base portrait:sm:text-lg landscape:text-xl landscape:text-right",
               "hover:underline underline-offset-4 decoration-1",
             )}
-            aria-label="Go to contact page"
+            aria-label="Contact"
+            tabIndex={contactText === "" ? -1 : undefined}
           >
-            <span aria-live="polite">{contactText}</span>
+            <span>{contactText}</span>
           </Link>
         </motion.div>
       </div>

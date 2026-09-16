@@ -37,7 +37,7 @@ function BrandLogoSlot({
         sizes={`${slotW}px`}
         className="object-contain object-center opacity-50 grayscale transition-all duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0"
         style={brightness != null ? { filter: `brightness(${brightness})` } : undefined}
-        loading="lazy"
+        loading="eager"
       />
     </div>
   );
@@ -84,8 +84,11 @@ function MarqueeTrack({
   logoMaxHeightPx: number;
   logoSlotMaxWidthPx: number;
 }) {
-  const doubled = [...brands, ...brands];
-
+  /*
+   * Two copies per strip is deliberate. The `-50%` keyframe only needs the two strips to be
+   * identical, but one strip must also be at least as wide as the viewport or the row's far
+   * edge shows through at the end of every loop; a single copy is only ~1120-1344px here.
+   */
   return (
     <div className="brand-marquee-row">
       <div
@@ -95,7 +98,7 @@ function MarqueeTrack({
         )}
       >
         <div className="brand-marquee-strip">
-          {doubled.map((brand, i) => (
+          {brands.map((brand, i) => (
             <BrandLogoSlot
               key={`${trackId}-${brand.id}-${direction}-${i}`}
               brand={brand}
@@ -105,7 +108,7 @@ function MarqueeTrack({
           ))}
         </div>
         <div className="brand-marquee-strip" aria-hidden>
-          {doubled.map((brand, i) => (
+          {brands.map((brand, i) => (
             <BrandLogoSlot
               key={`${trackId}-${brand.id}-${direction}-dup-${i}`}
               brand={brand}
@@ -143,18 +146,8 @@ export default function BrandMarquee({
     <section
       ref={sectionRef}
       id="brands"
-      /*
-       * `pb-40` (160px) gives the backdrop gradient runway below the last
-       * logo row. Without it, the gradient container is too short to reach
-       * its fully-opaque stop (#000 at 520px), so it ends at ~0.57 alpha
-       * black right under the logos — which reads as a hard horizontal edge
-       * where it meets the solid parent black. With the extra bottom space
-       * the gradient fully resolves to #000 before the section ends.
-       *
-       * `-mb-40` reclaims that space in layout so downstream sections don't
-       * shift.
-       */
-      className="relative z-[10] pt-8 pb-24 -mt-[320px] -mb-24"
+      /* In normal flow: sits on the dark column right after the gradient bridge. */
+      className="relative z-[10] pt-8 pb-24"
       style={brandsSectionStyle}
     >
       <div className="relative z-[1] w-full min-w-0">

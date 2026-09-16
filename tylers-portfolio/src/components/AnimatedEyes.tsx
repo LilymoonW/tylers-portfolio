@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties, RefObject } from 'react'
-import { useId, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, useEffectEvent } from 'react'
 import { useSpring } from 'framer-motion'
 
 import baseEyeAsset from '@/assets/base-eye.png'
@@ -10,6 +10,7 @@ import eyeBaseUpAsset from '@/assets/eye-base-up.png'
 import eyeBlink1Asset from '@/assets/eye-blink-1.png'
 import eyeBlink2Asset from '@/assets/eye-blink-2.png'
 import eyeBlink3Asset from '@/assets/eye-blink-3.png'
+import eyeBoundsAsset from '@/assets/eye-bounds.png'
 import eyeGlintAccentAsset from '@/assets/eye-glint-accent.png'
 import eyeGlintAsset from '@/assets/eye-glint.png'
 
@@ -17,7 +18,8 @@ function bundledAssetHref(mod: string | { src: string }): string {
   return typeof mod === 'string' ? mod : mod.src
 }
 
-const EYE_BOUNDS_PATH = '/images/eye-bounds.png'
+/** Luminance mask for the glint stack. Bundled with a content hash, so the href is stable and cacheable. */
+const eyeBoundsHref = bundledAssetHref(eyeBoundsAsset)
 
 const baseEyeHref = bundledAssetHref(baseEyeAsset)
 const eyeBaseUpHref = bundledAssetHref(eyeBaseUpAsset)
@@ -245,45 +247,34 @@ export default function AnimatedEyes({
   const maskId = `eye-bounds-mask-${rawId.replace(/:/g, '')}`
   const maskFeatherFilterId = `${maskId}-feather`
 
+  const svgRef = useRef<SVGSVGElement>(null)
   /**
-   * SVG masks often keep a stale bitmap for plain `/images/…` URLs. Load bounds as a fresh `blob:`
-   * on every mount (`cache: 'reload'`) so the clip always matches the file on disk right now.
+   * Cached `svgRef` bounding rect. Pointer mapping and the right-eye glint bias both need it; instead
+   * of a layout read per pointer event / animation frame it is measured lazily and dropped on
+   * resize + scroll, so the next reader measures once.
    */
-  const [boundsPaintHref, setBoundsPaintHref] = useState<string | null>(null)
-  const boundsBlobUrlRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    ;(async () => {
-      try {
-        const res = await fetch(EYE_BOUNDS_PATH, { cache: 'reload' })
-        if (!res.ok) return
-        const blob = await res.blob()
-        const u = URL.createObjectURL(blob)
-        if (cancelled) {
-          URL.revokeObjectURL(u)
-          return
-        }
-        if (boundsBlobUrlRef.current) URL.revokeObjectURL(boundsBlobUrlRef.current)
-        boundsBlobUrlRef.current = u
-        setBoundsPaintHref(u)
-      } catch {
-        if (!cancelled) setBoundsPaintHref(EYE_BOUNDS_PATH)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      if (boundsBlobUrlRef.current) {
-        URL.revokeObjectURL(boundsBlobUrlRef.current)
-        boundsBlobUrlRef.current = null
-      }
-      setBoundsPaintHref(null)
+  const svgRectRef = useRef<DOMRect | null>(null)
+  const readSvgRect = useCallback(() => {
+    if (!svgRectRef.current) {
+      const r = svgRef.current?.getBoundingClientRect() ?? null
+      // Never cache a collapsed box (e.g. before layout); try again on the next read.
+      if (r && r.width >= 1 && r.height >= 1) svgRectRef.current = r
+      return r
     }
+    return svgRectRef.current
   }, [])
 
-  const svgRef = useRef<SVGSVGElement>(null)
+  useEffect(() => {
+    const invalidate = () => {
+      svgRectRef.current = null
+    }
+    window.addEventListener('resize', invalidate)
+    window.addEventListener('scroll', invalidate, { passive: true })
+    return () => {
+      window.removeEventListener('resize', invalidate)
+      window.removeEventListener('scroll', invalidate)
+    }
+  }, [])
   const baseEyeTwitchRef = useRef<SVGGElement>(null)
   const glintGroupRef = useRef<SVGGElement>(null)
   const accentGlintGroupRef = useRef<SVGGElement>(null)
@@ -399,14 +390,15 @@ export default function AnimatedEyes({
     )
   }
 
-  const rightGlintBiasX = () => {
-    const w = svgRef.current?.getBoundingClientRect().width ?? EYE_VIEWBOX_W
+  // Effect Event: effects read it without listing it as a dependency (it only reads refs + constants).
+  const rightGlintBiasX = useEffectEvent(() => {
+    const w = readSvgRect()?.width ?? EYE_VIEWBOX_W
     return (
       RIGHT_EYE_GLINT_BIAS_X +
       viewBoxXFromScreenPx(w, RIGHT_EYE_GLINT_NUDGE_SCREEN_PX) -
       viewBoxXFromScreenPx(w, RIGHT_EYE_GLINT_SHIFT_RIGHT_SCREEN_PX)
     )
-  }
+  })
 
   useLayoutEffect(() => {
     const ox = EYE_BALL_REST_OFFSET_X
@@ -495,12 +487,17 @@ export default function AnimatedEyes({
     let lastAy = Number.NaN
     const tick = (now: number) => {
       rafId = requestAnimationFrame(tick)
+      // Background tab: nothing is painted, so skip the spring reads, layout read and DOM writes.
+      if (document.hidden) return
       if (bannerRevealRef) {
-        const bNext = blinkFrameIndexFromBannerReveal(bannerRevealRef.current)
+        const reveal = bannerRevealRef.current
+        const bNext = blinkFrameIndexFromBannerReveal(reveal)
         if (bNext !== bannerRevealBlinkIdxRef.current) {
           bannerRevealBlinkIdxRef.current = bNext
           setBannerRevealBlinkIdx(bNext)
         }
+        // Banner fully tucked away: keep the loop scheduled but do no work until it slides back in.
+        if (reveal === 0) return
       }
       if (now - lastCommitMs < EYE_UPDATE_INTERVAL_MS) return
       lastCommitMs = now
@@ -525,25 +522,29 @@ export default function AnimatedEyes({
   }, [glintX, glintY, accentGlintX, accentGlintY, bannerRevealRef])
 
   useEffect(() => {
-    const setFromPointer = (e: PointerEvent) => {
-      const svg = svgRef.current
-      if (!svg) return
-      const r = svg.getBoundingClientRect()
-      if (r.width < 1 || r.height < 1) return
+    const reduceMotionMq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let pointerRafId = 0
+    let pointerX = 0
+    let pointerY = 0
+
+    const applyPointer = () => {
+      pointerRafId = 0
+      const r = readSvgRect()
+      if (!r || r.width < 1 || r.height < 1) return
       const cx = r.left + r.width * 0.5
       const cy = r.top + r.height * 0.5
-      const nx = (e.clientX - cx) / (r.width * 0.5)
-      const ny = (e.clientY - cy) / (r.height * 0.5)
+      const nx = (pointerX - cx) / (r.width * 0.5)
+      const ny = (pointerY - cy) / (r.height * 0.5)
 
       const vh = Math.max(1, window.innerHeight)
-      const nyLid = clamp((e.clientY - vh * 0.5) / (vh * 0.5), -1, 1)
+      const nyLid = clamp((pointerY - vh * 0.5) / (vh * 0.5), -1, 1)
       const nextFrame = lidFrameFromNyLid(nyLid)
       if (nextFrame !== eyeBaseFrameRef.current) {
         eyeBaseFrameRef.current = nextFrame
         setEyeBaseFrame(nextFrame)
       }
 
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      if (reduceMotionMq.matches) return
       const motionScale =
         (portraitLayout ? PORTRAIT_POINTER_MOTION_SCALE : 1) * pointerMotionScale
 
@@ -574,6 +575,13 @@ export default function AnimatedEyes({
       accentGlintY.set(tyPxFront * motionScale * (EYE_VIEWBOX_H / r.height))
     }
 
+    /** Coalesce `pointermove`: keep only the latest coords and map them once per frame. */
+    const onPointerMove = (e: PointerEvent) => {
+      pointerX = e.clientX
+      pointerY = e.clientY
+      if (!pointerRafId) pointerRafId = requestAnimationFrame(applyPointer)
+    }
+
     const reset = () => {
       glintX.set(0)
       glintY.set(0)
@@ -583,13 +591,14 @@ export default function AnimatedEyes({
       setEyeBaseFrame('neutral')
     }
 
-    window.addEventListener('pointermove', setFromPointer, { passive: true })
+    window.addEventListener('pointermove', onPointerMove, { passive: true })
     window.addEventListener('blur', reset)
     return () => {
-      window.removeEventListener('pointermove', setFromPointer)
+      if (pointerRafId) cancelAnimationFrame(pointerRafId)
+      window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('blur', reset)
     }
-  }, [glintX, glintY, accentGlintX, accentGlintY, portraitLayout, pointerMotionScale])
+  }, [glintX, glintY, accentGlintX, accentGlintY, portraitLayout, pointerMotionScale, readSvgRect])
 
   /** Hover wins; then top-banner reveal sync; then shared idle blink. */
   const sharedBlinkIdx =
@@ -607,8 +616,8 @@ export default function AnimatedEyes({
   /** Blink frames share one opacity curve (see `lidSurfaceOpacity`). */
   const blinkCoverOpacity = lidSurfaceOpacity(eyeBlink1Href)
 
-  const showLeftGlints = Boolean(boundsPaintHref && leftFrameIdx === null)
-  const showRightGlints = Boolean(boundsPaintHref && rightFrameIdx === null)
+  const showLeftGlints = leftFrameIdx === null
+  const showRightGlints = rightFrameIdx === null
 
   return (
     <svg
@@ -618,49 +627,36 @@ export default function AnimatedEyes({
       role="img"
       aria-label={ariaLabel}
     >
-      {boundsPaintHref ? (
-        <defs>
-          <filter
-            id={maskFeatherFilterId}
-            x="-8%"
-            y="-8%"
-            width="116%"
-            height="116%"
-            colorInterpolationFilters="sRGB"
-          >
-            <feGaussianBlur in="SourceGraphic" stdDeviation={MASK_EDGE_FEATHER_STDDEV} />
-          </filter>
-          <mask
-            key={boundsPaintHref}
-            id={maskId}
-            ref={(el) => el?.setAttribute('mask-type', 'luminance')}
-            maskUnits="userSpaceOnUse"
-            maskContentUnits="userSpaceOnUse"
-            x="0"
-            y="0"
-            width={EYE_VIEWBOX_W}
-            height={EYE_VIEWBOX_H}
-          >
-            <image
-              href={boundsPaintHref}
-              width={EYE_VIEWBOX_W}
-              height={EYE_VIEWBOX_H}
-              preserveAspectRatio="none"
-              filter={`url(#${maskFeatherFilterId})`}
-            />
-          </mask>
-        </defs>
-      ) : null}
-
-      {boundsPaintHref ? (
-        <image
-          href={boundsPaintHref}
+      <defs>
+        <filter
+          id={maskFeatherFilterId}
+          x="-8%"
+          y="-8%"
+          width="116%"
+          height="116%"
+          colorInterpolationFilters="sRGB"
+        >
+          <feGaussianBlur in="SourceGraphic" stdDeviation={MASK_EDGE_FEATHER_STDDEV} />
+        </filter>
+        <mask
+          id={maskId}
+          ref={(el) => el?.setAttribute('mask-type', 'luminance')}
+          maskUnits="userSpaceOnUse"
+          maskContentUnits="userSpaceOnUse"
+          x="0"
+          y="0"
           width={EYE_VIEWBOX_W}
           height={EYE_VIEWBOX_H}
-          preserveAspectRatio="none"
-          opacity={0}
-        />
-      ) : null}
+        >
+          <image
+            href={eyeBoundsHref}
+            width={EYE_VIEWBOX_W}
+            height={EYE_VIEWBOX_H}
+            preserveAspectRatio="none"
+            filter={`url(#${maskFeatherFilterId})`}
+          />
+        </mask>
+      </defs>
 
       <g transform={eyeWrapTransform(-DUAL_EYE_OFFSET_X, 1)}>
         <g ref={baseEyeTwitchRef} transform={eyeBaseTwitchTransform(1)}>
@@ -674,7 +670,7 @@ export default function AnimatedEyes({
           />
         </g>
 
-        <g mask={boundsPaintHref ? `url(#${maskId})` : undefined} style={eyeGlintMaskGroupStyle(showLeftGlints)}>
+        <g mask={`url(#${maskId})`} style={eyeGlintMaskGroupStyle(showLeftGlints)}>
           <rect width={EYE_VIEWBOX_W} height={EYE_VIEWBOX_H} fill="#000000" />
           <g ref={glintGroupRef}>
             <image
@@ -732,7 +728,7 @@ export default function AnimatedEyes({
           />
         </g>
 
-        <g mask={boundsPaintHref ? `url(#${maskId})` : undefined} style={eyeGlintMaskGroupStyle(showRightGlints)}>
+        <g mask={`url(#${maskId})`} style={eyeGlintMaskGroupStyle(showRightGlints)}>
           <rect width={EYE_VIEWBOX_W} height={EYE_VIEWBOX_H} fill="#000000" />
           <g ref={rightGlintGroupRef}>
             <image

@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useLayoutEffect } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   motion,
   useMotionValue,
   useMotionValueEvent,
   useTransform,
 } from "framer-motion";
-import { introVideoScaleForProgress } from "@/config/introMotion";
+import {
+  introStickyTopForProgress,
+  introVideoScaleForProgress,
+  introVideoTopForScale,
+} from "@/config/introMotion";
 import { scrollBannerConfig } from "@/config/scrollBanner";
 import { cn } from "@/lib/utils";
 import { useLenis } from "@/components/providers/SmoothScrollProvider";
@@ -15,41 +19,34 @@ import { useIntroScroll } from "@/components/providers/IntroScrollProvider";
 
 export default function ScrollNav() {
   const lenis = useLenis();
-  const { scrollYProgress } = useIntroScroll();
+  const { introSectionRef, scrollYProgress } = useIntroScroll();
   const cfg = scrollBannerConfig;
 
   const vw = useMotionValue(0);
+  /** Intro sticky box height (px) — the box `IntroGate` scales its video inside. */
+  const vh = useMotionValue(0);
+  /** Intro section height (px) — the sticky box scrolls away with it after the pinned range. */
+  const sectionH = useMotionValue(0);
   useLayoutEffect(() => {
-    const set = () => vw.set(window.innerWidth);
+    const set = () => {
+      const sticky = document.querySelector("[data-intro-sticky]");
+      const stickyH =
+        sticky instanceof HTMLElement && sticky.clientHeight > 0
+          ? sticky.clientHeight
+          : window.innerHeight;
+      const sectionEl = introSectionRef.current;
+      vw.set(window.innerWidth);
+      vh.set(stickyH);
+      sectionH.set(
+        sectionEl && sectionEl.clientHeight > 0
+          ? sectionEl.clientHeight
+          : stickyH * 2,
+      );
+    };
     set();
     window.addEventListener("resize", set);
     return () => window.removeEventListener("resize", set);
-  }, [vw]);
-
-  /** Measured distance viewport top → scaled intro layer top (matches real layout, not dvh math). */
-  const videoGapTop = useMotionValue(0);
-
-  const measureVideoTop = useCallback(() => {
-    const el = document.querySelector("[data-intro-video-layer]");
-    if (!el || !(el instanceof HTMLElement)) return;
-    const top = el.getBoundingClientRect().top;
-    videoGapTop.set(Math.max(0, top));
-  }, [videoGapTop]);
-
-  useLayoutEffect(() => {
-    measureVideoTop();
-    window.addEventListener("resize", measureVideoTop);
-    window.addEventListener("scroll", measureVideoTop, { passive: true });
-    const onLenisScroll = () => measureVideoTop();
-    lenis?.on("scroll", onLenisScroll);
-    return () => {
-      window.removeEventListener("resize", measureVideoTop);
-      window.removeEventListener("scroll", measureVideoTop);
-      lenis?.off("scroll", onLenisScroll);
-    };
-  }, [lenis, measureVideoTop]);
-
-  useMotionValueEvent(scrollYProgress, "change", measureVideoTop);
+  }, [introSectionRef, sectionH, vh, vw]);
 
   const videoScale = useTransform(scrollYProgress, introVideoScaleForProgress);
 
@@ -59,10 +56,41 @@ export default function ScrollNav() {
     return Math.max(0, ((1 - sc) / 2) * width);
   });
 
+  /**
+   * Viewport top of the scaled intro layer, derived from the same numbers `IntroGate` uses instead
+   * of measuring the DOM: the sticky box is pinned at 0 while the section scrolls through its
+   * pinned range, then leaves with it, and the video scales about the box centre.
+   */
+  const videoGapTop = useTransform(
+    [scrollYProgress, videoScale, vh, sectionH],
+    ([p, s, h, sh]) => {
+      const progress = typeof p === "number" ? p : 0;
+      const sc = typeof s === "number" ? s : 1;
+      const stickyH = typeof h === "number" ? h : 0;
+      const sectionHeight = typeof sh === "number" ? sh : stickyH * 2;
+      const boxTop = introStickyTopForProgress(
+        progress,
+        stickyH,
+        sectionHeight,
+      );
+      return Math.max(0, boxTop + introVideoTopForScale(sc, stickyH));
+    },
+  );
+
   const navTopPx = useTransform(videoGapTop, (gap) => {
     const g = typeof gap === "number" ? gap : 0;
     const H = cfg.heightPx;
     return Math.min(g / 2 - H / 2, g - H) + cfg.offsetDownPx;
+  });
+
+  /**
+   * TYLER / YOON must not be tab stops while the label row is tucked above the viewport, i.e.
+   * while the row's vertical centre (where the labels sit) is at or above `y = 0`.
+   */
+  const [navHidden, setNavHidden] = useState(true);
+  useMotionValueEvent(navTopPx, "change", (top) => {
+    const hidden = top + cfg.heightPx / 2 <= 0;
+    setNavHidden((prev) => (prev === hidden ? prev : hidden));
   });
 
   const scrollToTop = () => {
@@ -98,6 +126,7 @@ export default function ScrollNav() {
         <button
           type="button"
           onClick={scrollToTop}
+          tabIndex={navHidden ? -1 : undefined}
           className={cn(
             cfg.labelClassName,
             cfg.tylerExtraClassName,
@@ -110,6 +139,7 @@ export default function ScrollNav() {
         <button
           type="button"
           onClick={scrollToTop}
+          tabIndex={navHidden ? -1 : undefined}
           className={cn(
             cfg.labelClassName,
             cfg.yoonExtraClassName,

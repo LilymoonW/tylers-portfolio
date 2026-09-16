@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    optimizePackageImports: ["framer-motion"],
-  },
   images: {
     formats: ["image/avif", "image/webp"],
   },
@@ -14,28 +11,16 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
-    if (process.env.NODE_ENV === "development") {
-      return [
-        {
-          source: "/images/eye-bounds.png",
-          headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
-        },
-      ];
-    }
-    // Long cache for fingerprinted static assets under `public/` (repeat visits, less origin egress).
+    // Media under `public/` keeps its plain filename when replaced, so it must not be
+    // `immutable`. A day at the edge plus a week of stale-while-revalidate keeps repeat
+    // visits cheap without pinning a replaced video or thumbnail for a year.
+    const media = [
+      { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+    ];
     return [
-      {
-        source: "/video/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
-      {
-        source: "/images/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
-      {
-        source: "/textures/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
+      { source: "/video/:path*", headers: media },
+      { source: "/images/:path*", headers: media },
+      { source: "/textures/:path*", headers: media },
     ];
   },
 };
