@@ -53,13 +53,20 @@ export default function Home() {
         <HomeIntro />
         <TopEyeBanner />
         <BrandsGradientBridge heightVh={85} />
-        <div className="relative bg-black">
+        {/* -mt-px: overlap the bridge's fractional (vh) bottom edge so no paper hairline shows. */}
+        <div className="relative -mt-px bg-black">
           <BrandMarquee
             topRow={brandMarqueeTopRow}
             bottomRow={brandMarqueeBottomRow}
           />
-          <div className="relative z-[30] flex justify-center px-6 pb-[clamp(2rem,8vh,6rem)]">
-            <MotionToggle className={cn(footerLinkClass, "text-white/50")} />
+          {/* Own compositing layer + fixed-width opaque box: the label swap repaints one clean rect. */}
+          <div className="relative z-[30] flex transform-gpu justify-center px-6 pb-[clamp(2rem,8vh,6rem)]">
+            <MotionToggle
+              className={cn(
+                footerLinkClass,
+                "min-w-[14ch] bg-black px-2 py-1 text-center text-white/50",
+              )}
+            />
           </div>
           <div className="relative z-[40] isolate">
             <FeaturedWork projects={featuredProjects} />

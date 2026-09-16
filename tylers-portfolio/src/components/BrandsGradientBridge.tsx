@@ -105,6 +105,9 @@ export default function BrandsGradientBridge({ heightVh = 85, colors }: Props) {
         bridge-height above) and its ellipse fades to transparent well inside that box, so
         the element's own edges never show when it is scaled down. Center sits just below
         the bridge so the darkest core stays off-screen and only the halo is visible.
+        The element stops 10% short of the bridge's bottom, inside the zone the fade has
+        already painted solid black, so its composited edge can never peek out as a line
+        (WebKit snaps transformed layers to device pixels differently from plain paint).
       */}
       <motion.div
         className="absolute"
@@ -112,8 +115,8 @@ export default function BrandsGradientBridge({ heightVh = 85, colors }: Props) {
           left: '-50%',
           right: '-50%',
           top: '-100%',
-          bottom: 0,
-          background: `radial-gradient(ellipse 55% 60% at 50% 115%, ${c.core} 0%, ${c.inner} 16%, ${c.mid} 32%, ${c.outer} 52%, transparent 100%)`,
+          bottom: '10%',
+          background: `radial-gradient(ellipse 55% 60% at 50% 125%, ${c.core} 0%, ${c.inner} 16%, ${c.mid} 32%, ${c.outer} 52%, transparent 100%)`,
           scale,
           opacity,
           x,
