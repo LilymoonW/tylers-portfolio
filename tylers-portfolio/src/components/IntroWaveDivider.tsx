@@ -50,7 +50,7 @@ const SIGNATURE_SECOND_STROKE_START = 0.06
 const SIGNATURE_REVEAL_SCROLL_DELAY = 0.22
 
 /** Tiled over masked ink — light-on-dark art; `screen` keeps black areas from punching holes in the ink. */
-const SIGNATURE_INK_TEXTURE_SRC = '/textures/marker-ink-texture.png'
+const SIGNATURE_INK_TEXTURE_SRC = '/textures/marker-ink-texture.webp'
 /** Soften ink fill only — grain texture stays sharp (sibling `<rect>`). */
 const SIGNATURE_INNER_BLUR_PX = 10
 /** Mobile / coarse pointer: skip blur + tiled texture (expensive compositing with masks). */

@@ -64,7 +64,7 @@ body::after {
   inset: 0;
   z-index: 20;
   pointer-events: none;
-  background-image: url('/textures/film-grain.png');
+  background-image: url('/textures/film-grain.webp');
   background-repeat: repeat;
   background-size: 256px 256px;
   opacity: var(--grain-opacity);

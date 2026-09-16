@@ -63,8 +63,8 @@ export default function Home() {
           <div className="relative z-[30] flex transform-gpu justify-center px-6 pb-[clamp(2rem,8vh,6rem)]">
             <MotionToggle
               className={cn(
-                footerLinkClass,
-                "min-w-[14ch] bg-black px-2 py-1 text-center text-white/50",
+                bannerTypeChip,
+                "pointer-events-auto min-w-[9ch] bg-black px-1.5 py-0.5 text-center text-[0.5rem] leading-none text-white/50 transition hover:text-white",
               )}
             />
           </div>
