@@ -40,8 +40,10 @@ const footerLinkClass = cn(
  * Layer order, bottom to top: page paper (html) → intro + signature (transparent,
  * in flow) → BrandsGradientBridge (paper → glow → black, sized by its own height)
  * → the dark column, which starts exactly where the bridge ends. The film grain is
- * one fixed layer over the whole page (`body::after` in globals.css), so nothing
- * here paints its own.
+ * one fixed layer (`body::after`, z-20 in globals.css), so nothing here paints its
+ * own. The column must not create a stacking context (no z-index) so the marquee
+ * (z-30) and the featured row (z-40) can sit above the grain while the black
+ * background stays under it.
  */
 export default function Home() {
   return (
@@ -51,12 +53,14 @@ export default function Home() {
         <HomeIntro />
         <TopEyeBanner />
         <BrandsGradientBridge heightVh={85} />
-        <div className="relative z-[15] bg-black">
+        <div className="relative bg-black">
           <BrandMarquee
             topRow={brandMarqueeTopRow}
             bottomRow={brandMarqueeBottomRow}
           />
-          <div aria-hidden className="h-[clamp(2rem,8vh,6rem)] w-full" />
+          <div className="relative z-[30] flex justify-center px-6 pb-[clamp(2rem,8vh,6rem)]">
+            <MotionToggle className={cn(footerLinkClass, "text-white/50")} />
+          </div>
           <div className="relative z-[40] isolate">
             <FeaturedWork projects={featuredProjects} />
           </div>
@@ -74,7 +78,6 @@ export default function Home() {
               <Link href="/portfolio" className={footerLinkClass}>
                 PORTFOLIO
               </Link>
-              <MotionToggle className={footerLinkClass} />
             </nav>
             <div className="mx-auto max-w-2xl px-6 pb-[max(3rem,calc(env(safe-area-inset-bottom,0px)+1.5rem))] text-center">
               <p className="font-body text-balance text-base leading-relaxed text-white/60">

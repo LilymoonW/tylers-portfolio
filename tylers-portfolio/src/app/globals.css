@@ -38,20 +38,31 @@ body {
   position: relative;
   z-index: 1;
   font-family: var(--font-body), system-ui, sans-serif;
-  overflow-x: hidden;
+}
+
+/* `clip` (not `hidden`) so neither element becomes a scroll container: a page
+   wider than the viewport is what lets mobile Safari pinch out past the layout. */
+html,
+body {
+  overflow-x: clip;
 }
 
 /*
- * Film grain: one viewport-fixed layer over the whole page, like grain on a
- * print. The scene scrolls under it and the grain never moves, on paper and on
- * black alike, so there is no seam where sections meet. Plain alpha (no blend
- * mode) keeps it a single cheap composited tile. Tune with `--grain-opacity`.
+ * Film grain: one viewport-fixed layer, like grain on a print. The scene scrolls
+ * under it and the grain never moves, on paper and on black alike, so there is
+ * no seam where sections meet. Plain alpha (no blend mode) keeps it a single
+ * cheap composited tile. Tune with `--grain-opacity`.
+ *
+ * z-index 20 puts it above every background and static section but below the
+ * things that move: the logo marquee (z-30), the featured carousel and footer
+ * (z-40), the signature (z-45), the eyes banner (z-80), nav (z-100), modal.
+ * Sections that should sit above it must not be inside another stacking context.
  */
 body::after {
   content: '';
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 20;
   pointer-events: none;
   background-image: url('/textures/film-grain.png');
   background-repeat: repeat;
@@ -144,6 +155,18 @@ body::after {
 /* Display font utility */
 .font-display {
   font-family: var(--font-display), system-ui, sans-serif;
+}
+
+/* BrandMarquee logos: grayscale at rest, colour on hover. `--logo-brightness` is set
+   inline per brand; keeping both in one rule stops the brightness from replacing
+   the grayscale (a second `filter` declaration overrides the first). */
+#brands .brand-logo-img {
+  filter: grayscale(1) brightness(var(--logo-brightness, 1));
+}
+@media (hover: hover) {
+  #brands .brand-logo:hover .brand-logo-img {
+    filter: grayscale(0) brightness(var(--logo-brightness, 1));
+  }
 }
 
 /* BrandMarquee — `--brand-marquee-duration` + `--brand-marquee-logo-gap` on `#brands` */

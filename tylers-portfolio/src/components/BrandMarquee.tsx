@@ -35,8 +35,8 @@ function BrandLogoSlot({
         alt={brand.name}
         fill
         sizes={`${slotW}px`}
-        className="object-contain object-center opacity-50 grayscale transition-all duration-300 group-hover/logo:opacity-100 group-hover/logo:grayscale-0"
-        style={brightness != null ? { filter: `brightness(${brightness})` } : undefined}
+        className="brand-logo-img object-contain object-center opacity-50 transition-[opacity,filter] duration-300 group-hover/logo:opacity-100"
+        style={brightness != null ? ({ '--logo-brightness': brightness } as CSSProperties) : undefined}
         loading="eager"
       />
     </div>
@@ -61,7 +61,7 @@ function BrandLogoSlot({
 
   return (
     <div
-      className="group/logo box-border shrink-0"
+      className="brand-logo group/logo box-border shrink-0"
       style={{ width: slotW, height: slotH, flex: "0 0 auto" }}
       title={brand.name}
     >
@@ -146,8 +146,8 @@ export default function BrandMarquee({
     <section
       ref={sectionRef}
       id="brands"
-      /* In normal flow: sits on the dark column right after the gradient bridge. */
-      className="relative z-[10] pt-8 pb-24"
+      /* In normal flow on the dark column. z-30 keeps the moving logos above the fixed grain (z-20). */
+      className="relative z-[30] pt-8 pb-24"
       style={brandsSectionStyle}
     >
       <div className="relative z-[1] w-full min-w-0">

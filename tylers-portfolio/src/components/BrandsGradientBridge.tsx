@@ -96,7 +96,8 @@ export default function BrandsGradientBridge({ heightVh = 85, colors }: Props) {
     <section
       ref={ref}
       aria-hidden
-      className="pointer-events-none relative w-full overflow-visible"
+      /* Clip sideways only: the glow may spill up over the paper, never widen the page. */
+      className="pointer-events-none relative w-full overflow-x-clip"
       style={{ height: `${heightVh}vh` }}
     >
       {/*
