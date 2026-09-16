@@ -89,6 +89,21 @@ export default function IntroGate() {
   const { introSectionRef, scrollYProgress } = useIntroScroll();
   const stickyRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  /** The clip loops; once a full pass has played, tapping it toggles pause. */
+  const playedOnceRef = useRef(false);
+  const userPausedRef = useRef(false);
+
+  const toggleUserPause = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || !playedOnceRef.current) return;
+    if (v.paused) {
+      userPausedRef.current = false;
+      void v.play().catch(() => {});
+    } else {
+      userPausedRef.current = true;
+      v.pause();
+    }
+  }, []);
   const isActive = useInViewActive(introSectionRef, {
     rootMargin: "0px",
     threshold: 0,
@@ -191,6 +206,7 @@ export default function IntroGate() {
       if (destroyed || autoplayBlocked) return;
       if (document.visibilityState !== "visible") return;
       if (!introMotionAllowed()) return;
+      if (userPausedRef.current) return;
       v.muted = true;
       v.defaultMuted = true;
       requestAnimationFrame(() => {
@@ -228,10 +244,21 @@ export default function IntroGate() {
       window.clearInterval(playWatchdogId);
     }, 2200);
 
+    // Loop: count the first completed pass (currentTime jumps back to the start).
+    let lastTime = 0;
+    const onTimeUpdate = () => {
+      const t = v.currentTime;
+      if (t + 0.5 < lastTime || (v.duration && t >= v.duration - 0.05)) {
+        playedOnceRef.current = true;
+      }
+      lastTime = t;
+    };
+    v.addEventListener("timeupdate", onTimeUpdate);
+
     const onPause = () => {
       if (destroyed || v.ended) return;
-      // Paused on purpose (motion switch) — leave it alone.
-      if (!introMotionAllowed()) return;
+      // Paused on purpose (motion switch or a tap after the first pass) — leave it alone.
+      if (!introMotionAllowed() || userPausedRef.current) return;
       if (pauseRetries >= MAX_PAUSE_RETRIES) return;
       if (v.currentTime <= 0.08 || document.visibilityState === "visible") {
         pauseRetries += 1;
@@ -250,6 +277,7 @@ export default function IntroGate() {
       // Flipping the switch is a user gesture, so an earlier NotAllowedError no longer applies.
       autoplayBlocked = false;
       pauseRetries = 0;
+      userPausedRef.current = false;
       tryPlay();
     });
 
@@ -265,6 +293,7 @@ export default function IntroGate() {
       window.clearTimeout(stopWatchdogId);
       unsubscribeMotion();
       v.removeEventListener("pause", onPause);
+      v.removeEventListener("timeupdate", onTimeUpdate);
       v.removeEventListener("loadeddata", onReady);
       v.removeEventListener("canplay", onReady);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -291,9 +320,19 @@ export default function IntroGate() {
             muted
             playsInline
             preload="metadata"
+            loop
             controls={false}
             disablePictureInPicture
-            className="absolute inset-0 z-[2] h-full w-full min-h-full min-w-full object-cover object-center"
+            tabIndex={0}
+            aria-label="Intro video. After the first pass, press to pause or play."
+            onClick={toggleUserPause}
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                toggleUserPause();
+              }
+            }}
+            className="absolute inset-0 z-[2] h-full w-full min-h-full min-w-full cursor-pointer object-cover object-center"
           />
           <IntroScrollIndicator
             videoRef={videoRef}
